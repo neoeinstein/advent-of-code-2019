@@ -54,6 +54,26 @@ fn execute_mul(data: &mut [usize], operands: BinOperands) {
     data[operands.destination] = data[operands.sources.0] * data[operands.sources.1];
 }
 
+fn execute_program(initial: &[usize], noun: usize, verb: usize) -> usize {
+    let mut data = Vec::from(initial);
+    data[1] = noun;
+    data[2] = verb;
+
+    let mut pc: usize = 0;
+
+    while pc < data.len() {
+        let opcode = OpCode::try_from(data[pc]).expect(&format!("invalid opcode {} at position {}", data[pc], pc));
+
+        pc = match opcode {
+            OpCode::Halt => break,
+            OpCode::Add => execute_binary_op(&mut data, pc, execute_add),
+            OpCode::Mul => execute_binary_op(&mut data, pc, execute_mul),
+        };
+    }
+
+    data[0]
+}
+
 fn parse_input() -> Vec<usize> {
     let mut in_fd = get_input_reader();
     let mut data = String::new();
@@ -66,22 +86,15 @@ fn parse_input() -> Vec<usize> {
 }
 
 fn main() {
-    let mut data = parse_input();
-    println!("{:?}", data);
-    data[1] = 12;
-    data[2] = 2;
+    let input = parse_input();
 
-    let mut pc: usize = 0;
-
-    while pc < data.len() {
-        let opcode = OpCode::try_from(data[pc]).expect(&format!("invalid opcode {} at position {}", data[pc], pc));
-
-        pc = match opcode {
-            OpCode::Halt => break,
-            OpCode::Add => execute_binary_op(&mut data, pc, execute_add),
-            OpCode::Mul => execute_binary_op(&mut data, pc, execute_mul),
-        };
-        
-        println!("{:?}", data);
+    for noun in 0..99 {
+        for verb in 0..99 {
+            let output = execute_program(&input, noun, verb);
+            if output == 19690720 {
+                println!("({}, {}) = {}", noun, verb, noun * 100 + verb);
+                return;
+            }
+        }
     }
 }
