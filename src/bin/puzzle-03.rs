@@ -84,6 +84,47 @@ fn calculate_manhattan_distance_from_origin(p: (i32, i32)) -> usize {
     p.0.abs() as usize + p.1.abs() as usize
 }
 
+#[derive(Clone, Copy, Debug)]
+struct CandidatePoint {
+    point: (i32, i32),
+    distance: usize,
+}
+
+impl CandidatePoint {
+    fn from_segments(seg1: &Segment, seg2: &Segment) -> Option<CandidatePoint> {
+        if seg1.directive.dir.is_vertical() == seg2.directive.dir.is_vertical() {
+            return None;
+        }
+    
+        let (ver_seg, hor_seg) = if seg1.directive.dir.is_vertical() {
+            (seg1, seg2)
+        } else {
+            (seg2, seg1)
+        };  
+
+        let candidate = (ver_seg.point.0, hor_seg.point.1);
+        let ver_seg_starts_below_candidate = ver_seg.point.1 < candidate.1;
+        let ver_seg_ends_above_candidate = ver_seg.next_point().1 > candidate.1;
+        let hor_seg_starts_left_of_candidate = hor_seg.point.0 < candidate.0;
+        let hor_seg_ends_right_of_candidate = hor_seg.next_point().0 > candidate.0;
+        
+        if ver_seg_starts_below_candidate == ver_seg_ends_above_candidate && hor_seg_starts_left_of_candidate == hor_seg_ends_right_of_candidate {
+            let added_ver_dist = (candidate.1 - ver_seg.point.1).abs() as usize;
+            let added_hor_dist = (candidate.0 - hor_seg.point.0).abs() as usize;
+
+            let candidate = CandidatePoint {
+                point: candidate,
+                distance: ver_seg.total_distance + hor_seg.total_distance + added_ver_dist + added_hor_dist,
+            };
+    
+            println!("*** {:?} and {:?} intersect at {:?}", ver_seg, hor_seg, candidate);
+            Some(candidate)
+        } else {
+            None
+        }
+    }
+}
+
 fn find_intesection(seg1: &Segment, seg2: &Segment) -> Option<(i32, i32)> {
     if seg1.directive.dir.is_vertical() == seg2.directive.dir.is_vertical() {
         return None;
@@ -114,6 +155,7 @@ fn find_intesection(seg1: &Segment, seg2: &Segment) -> Option<(i32, i32)> {
 struct Segment {
     point: (i32, i32),
     directive: Directive,
+    total_distance: usize,
 }
 
 impl Segment {
@@ -135,8 +177,9 @@ struct Wire {
 impl Wire {
     fn find_intersections(&self, seg: &Segment) -> Option<usize> {
         self.segments.iter()
-            .filter_map(|self_seg| find_intesection(self_seg, seg))
-            .map(calculate_manhattan_distance_from_origin)
+            .filter_map(|self_seg| CandidatePoint::from_segments(self_seg, seg))
+            //.map(|c| calculate_manhattan_distance_from_origin(c.point))
+            .map(|c| c.distance)
             .min()
     }
 }
@@ -144,18 +187,20 @@ impl Wire {
 impl FromStr for Wire {
     type Err = InvalidDirection;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
-        let (_, segments) = s.split(',')
+        let (_, _, segments) = s.split(',')
             .filter(|op| !op.is_empty())
             .map(|dir| dir.parse().expect("invalid segment"))
-            .fold(((0, 0), Vec::new()), |(point, mut segs), directive| {
+            .fold(((0, 0), 0, Vec::new()), |(point, total_distance, mut segs), directive| {
                 let seg = Segment {
                     point,
                     directive,
+                    total_distance,
                 };
                 let next = seg.next_point();
+                let next_dist = total_distance + seg.directive.distance as usize;
                 println!("{:?} => {:?}", seg, next);
                 segs.push(seg);
-                (next, segs)
+                (next, next_dist, segs)
             });
         Ok(Wire { segments })
     }
