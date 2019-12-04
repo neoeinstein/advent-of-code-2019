@@ -1,5 +1,4 @@
 use std::{
-    convert::TryFrom,
     io::Read,
     ops,
 };
@@ -42,18 +41,31 @@ fn digits_are_in_increasing_order(x: &u32) -> bool {
     return true;
 }
 
-fn contains_a_pair(x: &u32) -> bool {
+fn contains_a_proper_pair(x: &u32) -> bool {
     let mut iter = DigitIterator::from(*x);
     let mut last = iter.next().expect("number to have digits");
+    let mut is_in_pair = false;
+    let mut too_long = false;
     
     for digit in iter {
-        if digit == last {
+        if is_in_pair && digit != last && !too_long {
             return true;
         }
+
+        if digit == last {
+            if is_in_pair {
+                too_long = true;
+            }
+            is_in_pair = true;
+        } else {
+            too_long = false;
+            is_in_pair = false;
+        }
+        
         last = digit;
     }
 
-    return false;
+    return is_in_pair && !too_long;
 }
 
 fn parse_input() -> ops::RangeInclusive<u32> {
@@ -72,7 +84,7 @@ fn parse_input() -> ops::RangeInclusive<u32> {
 fn main() {
     let range = parse_input();
 
-    let result = range.filter(digits_are_in_increasing_order).filter(contains_a_pair).count();
+    let result = range.filter(digits_are_in_increasing_order).filter(contains_a_proper_pair).count();
 
     println!("Count: {}", result);
 }

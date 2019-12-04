@@ -125,32 +125,6 @@ impl CandidatePoint {
     }
 }
 
-fn find_intesection(seg1: &Segment, seg2: &Segment) -> Option<(i32, i32)> {
-    if seg1.directive.dir.is_vertical() == seg2.directive.dir.is_vertical() {
-        return None;
-    }
-
-    let (ver_seg, hor_seg) = if seg1.directive.dir.is_vertical() {
-        (seg1, seg2)
-    } else {
-        (seg2, seg1)
-    };
-
-    let candidate = (ver_seg.point.0, hor_seg.point.1);
-
-    let ver_seg_starts_below_candidate = ver_seg.point.1 < candidate.1;
-    let ver_seg_ends_above_candidate = ver_seg.next_point().1 > candidate.1;
-    let hor_seg_starts_left_of_candidate = hor_seg.point.0 < candidate.0;
-    let hor_seg_ends_right_of_candidate = hor_seg.next_point().0 > candidate.0;
-    
-    if ver_seg_starts_below_candidate == ver_seg_ends_above_candidate && hor_seg_starts_left_of_candidate == hor_seg_ends_right_of_candidate {
-        println!("*** {:?} and {:?} intersect at {:?}", ver_seg, hor_seg, candidate);
-        Some(candidate)
-    } else {
-        None
-    }
-}
-
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     point: (i32, i32),
