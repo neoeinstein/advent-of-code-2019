@@ -1,4 +1,5 @@
 use std::{
+    fmt,
     io::BufRead,
     str::FromStr,
 };
@@ -41,10 +42,29 @@ impl FromStr for Direction {
     }
 }
 
+impl fmt::Display for Direction {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let c = match self {
+            Direction::Up => "U",
+            Direction::Down => "D",
+            Direction::Left => "L",
+            Direction::Right => "R",
+        };
+
+        f.write_str(c)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 struct Directive {
     dir: Direction,
     distance: i32,
+}
+
+impl fmt::Display for Directive {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{}{}", self.dir, self.distance)
+    }
 }
 
 #[derive(Debug)]
@@ -80,17 +100,21 @@ impl FromStr for Directive {
    }
 }
 
-fn calculate_manhattan_distance_from_origin(p: (i32, i32)) -> usize {
-    p.0.abs() as usize + p.1.abs() as usize
-}
-
 #[derive(Clone, Copy, Debug)]
 struct CandidatePoint {
     point: (i32, i32),
-    distance: usize,
+    total_wire_delay: usize,
 }
 
 impl CandidatePoint {
+    fn manhattan_distance_from_origin(self) -> usize {
+        self.point.0.abs() as usize + self.point.1.abs() as usize
+    }
+
+    fn wire_delay_to_point(self) -> usize {
+        self.total_wire_delay
+    }
+
     fn from_segments(seg1: &Segment, seg2: &Segment) -> Option<CandidatePoint> {
         if seg1.directive.dir.is_vertical() == seg2.directive.dir.is_vertical() {
             return None;
@@ -114,10 +138,10 @@ impl CandidatePoint {
 
             let candidate = CandidatePoint {
                 point: candidate,
-                distance: ver_seg.total_distance + hor_seg.total_distance + added_ver_dist + added_hor_dist,
+                total_wire_delay: ver_seg.wire_delay + hor_seg.wire_delay + added_ver_dist + added_hor_dist,
             };
     
-            println!("*** {:?} and {:?} intersect at {:?}", ver_seg, hor_seg, candidate);
+            println!("{} and {} intersect at candidate {}", ver_seg, hor_seg, candidate);
             Some(candidate)
         } else {
             None
@@ -125,11 +149,17 @@ impl CandidatePoint {
     }
 }
 
+impl fmt::Display for CandidatePoint {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} [wire delay: {}; dist: {}]", self.point, self.total_wire_delay, self.manhattan_distance_from_origin())
+    }
+}
+
 #[derive(Clone, Copy, Debug)]
 struct Segment {
     point: (i32, i32),
     directive: Directive,
-    total_distance: usize,
+    wire_delay: usize,
 }
 
 impl Segment {
@@ -143,17 +173,22 @@ impl Segment {
     }
 }
 
+impl fmt::Display for Segment {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "{:?} {} [wire delay: {}]", self.point, self.directive, self.wire_delay)
+    }
+}
+
 #[derive(Clone, Debug)]
 struct Wire {
     segments: Vec<Segment>
 }
 
 impl Wire {
-    fn find_intersections(&self, seg: &Segment) -> Option<usize> {
+    fn find_intersections(&self, seg: &Segment, weight_function: fn(CandidatePoint) -> usize) -> Option<usize> {
         self.segments.iter()
             .filter_map(|self_seg| CandidatePoint::from_segments(self_seg, seg))
-            //.map(|c| calculate_manhattan_distance_from_origin(c.point))
-            .map(|c| c.distance)
+            .map(weight_function)
             .min()
     }
 }
@@ -164,15 +199,15 @@ impl FromStr for Wire {
         let (_, _, segments) = s.split(',')
             .filter(|op| !op.is_empty())
             .map(|dir| dir.parse().expect("invalid segment"))
-            .fold(((0, 0), 0, Vec::new()), |(point, total_distance, mut segs), directive| {
+            .fold(((0, 0), 0, Vec::new()), |(point, wire_delay, mut segs), directive| {
                 let seg = Segment {
                     point,
                     directive,
-                    total_distance,
+                    wire_delay,
                 };
                 let next = seg.next_point();
-                let next_dist = total_distance + seg.directive.distance as usize;
-                println!("{:?} => {:?}", seg, next);
+                let next_dist = wire_delay + seg.directive.distance as usize;
+                //println!("{:?} => {:?}", seg, next);
                 segs.push(seg);
                 (next, next_dist, segs)
             });
@@ -193,9 +228,15 @@ fn main() {
     let wires = parse_input();
     //println!("{:?}", wires);
 
+    let weight_function = 
+        if cfg!(feature = "part-1") {
+            CandidatePoint::wire_delay_to_point
+        } else {
+            CandidatePoint::manhattan_distance_from_origin
+        };
     
     let dist = wires[0].segments.iter()
-        .filter_map(|seg| wires[1].find_intersections(seg))
+        .filter_map(|seg| wires[1].find_intersections(seg, weight_function))
         .min();
 
     println!("{:?}", dist);
