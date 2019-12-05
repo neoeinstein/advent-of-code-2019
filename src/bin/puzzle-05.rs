@@ -6,7 +6,13 @@ fn main() -> Result<()> {
 
     let mut exe = intcode::Executable::from(program);
 
-    exe.set_input(vec![1]);
+    let input = if cfg!(feature = "part-1") {
+        1
+    } else {
+        5
+    };
+
+    exe.set_input(vec![input]);
 
     exe.execute()?;
 

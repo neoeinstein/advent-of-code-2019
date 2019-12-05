@@ -15,6 +15,10 @@ enum OpCode {
     Mul,
     Input,
     Output,
+    JumpNonZero,
+    JumpZero,
+    LessThan,
+    Equal
 }
 
 #[derive(Error, Debug)]
@@ -29,6 +33,10 @@ impl TryFrom<isize> for OpCode {
             2 => OpCode::Mul,
             3 => OpCode::Input,
             4 => OpCode::Output,
+            5 => OpCode::JumpNonZero,
+            6 => OpCode::JumpZero,
+            7 => OpCode::LessThan,
+            8 => OpCode::Equal,
             99 => OpCode::Halt,
             _ => Err(InvalidOpCode(op))?,
         };
@@ -130,6 +138,10 @@ impl ProgramCounter {
 
     fn advance(&mut self, cnt: usize) {
         self.0 += cnt;
+    }
+
+    fn jump(&mut self, address: Address) {
+        self.0 = address.0
     }
 
     const fn address(self) -> Address {
@@ -264,6 +276,10 @@ impl Executable {
                 OpCode::Mul => self.execute_binary_op(ops::Mul::mul)?,
                 OpCode::Input => self.execute_input()?,
                 OpCode::Output => self.execute_output()?,
+                OpCode::JumpNonZero => self.execute_jump_cond(true)?,
+                OpCode::JumpZero => self.execute_jump_cond(false)?,
+                OpCode::LessThan => self.execute_cmp(isize::lt)?,
+                OpCode::Equal => self.execute_cmp(isize::eq)?,
             };
         }
 
@@ -311,6 +327,216 @@ impl Executable {
         let value = self.read_param(modes, 0)?;
         self.output.push(value);
         self.pc.advance(2);
+        Ok(())
+    }
+
+    fn execute_jump_cond(&mut self, jump_if_non_zero: bool) -> Result<(), ExecutionErrorInner> {
+        let modes = ParameterModes(self.exec_read(self.pc.address())? / 100);
+        let value = self.read_param(modes, 0)?;
+
+        if (value != 0) == jump_if_non_zero {
+            let target = self.read_param(modes, 1)?;
+            let address = Address::try_from_value(target).ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: target, position: self.pc })?;
+            
+            self.pc.jump(address);
+        } else {
+            self.pc.advance(3);
+        }
+
+        Ok(())
+    }
+
+    fn execute_cmp(&mut self, f: fn(&isize, &isize) -> bool) -> Result<(), ExecutionErrorInner> {
+        let operands = self.get_binary_operands()?;
+
+        let result = if f(&operands.values.0, &operands.values.1) {
+            1
+        } else {
+            0
+        };
+
+        self.exec_write(operands.destination, result)?;
+
+        self.pc.advance(4);
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use std::io;
+    use pretty_assertions::assert_eq;
+    use super::{Program, Executable};
+    use anyhow::Result;
+
+    const POS_IS_INPUT_EQUAL_TO_8: &str = "3,9,8,9,10,9,4,9,99,-1,8";
+    const POS_IS_INPUT_LESS_THAN_8: &str = "3,9,7,9,10,9,4,9,99,-1,8";
+    const IMM_IS_INPUT_EQUAL_TO_8: &str = "3,3,1108,-1,8,3,4,3,99";
+    const IMM_IS_INPUT_LESS_THAN_8: &str = "3,3,1107,-1,8,3,4,3,99";
+    
+    const TRUE: &[isize] = &[1];
+    const ONE: &[isize] = &[1];
+    const FALSE: &[isize] = &[0];
+    const ZERO: &[isize] = &[0];
+
+    #[test]
+    fn position_mode_1_is_equal_to_8() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(POS_IS_INPUT_EQUAL_TO_8, input, FALSE)
+    }
+
+    #[test]
+    fn position_mode_8_is_equal_to_8() -> Result<()> {
+        let input = vec![8];
+
+        run_program_test(POS_IS_INPUT_EQUAL_TO_8, input, TRUE)
+    }
+
+    #[test]
+    fn position_mode_1_is_less_than_8() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(POS_IS_INPUT_LESS_THAN_8, input, TRUE)
+    }
+
+    #[test]
+    fn position_mode_8_is_less_than_8() -> Result<()> {
+        let input = vec![8];
+
+        run_program_test(POS_IS_INPUT_LESS_THAN_8, input, FALSE)
+    }
+
+    #[test]
+    fn immediate_mode_1_is_equal_to_8() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(IMM_IS_INPUT_EQUAL_TO_8, input, FALSE)
+    }
+
+    #[test]
+    fn immediate_mode_8_is_equal_to_8() -> Result<()> {
+        let input = vec![8];
+
+        run_program_test(IMM_IS_INPUT_EQUAL_TO_8, input, TRUE)
+    }
+
+    #[test]
+    fn immediate_mode_1_is_less_than_8() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(IMM_IS_INPUT_LESS_THAN_8, input, TRUE)
+    }
+
+    #[test]
+    fn immediate_mode_8_is_less_than_8() -> Result<()> {
+        let input = vec![8];
+
+        run_program_test(IMM_IS_INPUT_LESS_THAN_8, input, FALSE)
+    }
+
+    const POS_JUMP_INPUT_WAS_ZERO: &str = "3,12,6,12,15,1,13,14,13,4,13,99,-1,0,1,9";
+    const IMM_JUMP_INPUT_WAS_ZERO: &str = "3,3,1105,-1,9,1101,0,0,12,4,12,99,1";
+
+    #[test]
+    fn position_mode_jump_if_0_is_0() -> Result<()> {
+        let input = vec![0];
+
+        run_program_test(POS_JUMP_INPUT_WAS_ZERO, input, ZERO)
+    }
+
+    #[test]
+    fn position_mode_jump_if_1_is_0() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(POS_JUMP_INPUT_WAS_ZERO, input, ONE)
+    }
+
+    #[test]
+    fn immediate_mode_jump_if_0_is_0() -> Result<()> {
+        let input = vec![0];
+
+        run_program_test(IMM_JUMP_INPUT_WAS_ZERO, input, ZERO)
+    }
+
+    #[test]
+    fn immediate_mode_jump_if_1_is_0() -> Result<()> {
+        let input = vec![1];
+
+        run_program_test(IMM_JUMP_INPUT_WAS_ZERO, input, ONE)
+    }
+
+    const PUZ_5_PART_2_EXAMPLE: &str = "
+        3,21,1008,21,8,20,1005,20,22,107,8,21,20,1006,20,31,
+        1106,0,36,98,0,0,1002,21,125,20,4,20,1105,1,46,104,
+        999,1105,1,46,1101,1000,1,20,4,20,1105,1,46,98,99";
+
+    #[test]
+    fn compare_neg2_against_8() -> Result<()> {
+        let input = vec![-2];
+
+        run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[999])
+    }
+
+    #[test]
+    fn compare_8_against_8() -> Result<()> {
+        let input = vec![8];
+
+        run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[1000])
+    }
+
+    #[test]
+    fn compare_99_against_8() -> Result<()> {
+        let input = vec![99];
+
+        run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[1001])
+    }
+
+    #[test]
+    fn run_system_1_diagnostics() -> Result<()> {
+        let exe = run_diagnostics(1)?;
+
+        assert!(exe.output()[..exe.output().len()-2].iter().copied().all(|i| i == 0isize));
+
+        Ok(())
+    }
+
+    #[test]
+    fn run_system_5_diagnostics() -> Result<()> {
+        let exe = run_diagnostics(5)?;
+
+        assert_eq!(1, exe.output().len());
+
+        Ok(())
+    }
+
+    fn run_diagnostics(system: isize) -> Result<Executable> {
+        const PROGRAM: &str = include_str!("../inputs/input-05");
+
+        let program = Program::from_reader(&mut io::Cursor::new(PROGRAM))?;
+
+        let mut exe = Executable::from(program);
+
+        exe.set_input(vec![system]);
+
+        exe.execute()?;
+        
+        println!("system {} diagnostic code = {}", system, exe.output()[exe.output().len() - 1]);
+
+        Ok(exe)
+    }
+
+    fn run_program_test(program_data: &str, input: Vec<isize>, expected: &[isize]) -> Result<()> {
+        let program = Program::from_reader(&mut io::Cursor::new(program_data))?;
+
+        let mut exe = Executable::from(program);
+
+        exe.set_input(input);
+
+        exe.execute()?;
+
+        assert_eq!(expected, exe.output());
+
         Ok(())
     }
 }
