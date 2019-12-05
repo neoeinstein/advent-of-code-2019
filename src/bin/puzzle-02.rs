@@ -2,13 +2,13 @@ use advent_of_code_2019::{intcode,get_input_reader};
 use anyhow::{anyhow, Result};
 
 fn run_with_specific_state(program: intcode::Program, noun: usize, verb: usize) -> Result<usize> {
-    let mut p = program.clone();
-    p.try_write(1, noun);
-    p.try_write(2, verb);
+    let mut p = intcode::Executable::from(program);
+    p.memory_mut().try_write(intcode::Address::new(1), noun);
+    p.memory_mut().try_write(intcode::Address::new(2), verb);
 
-    p.execute_in_place()?;
+    p.execute()?;
 
-    let output = p.try_read(0).ok_or_else(|| anyhow!("No data in location 0"))?;
+    let output = p.memory().try_read(intcode::Address::new(0)).ok_or_else(|| anyhow!("No data in location 0"))?;
 
     Ok(output)
 } 
