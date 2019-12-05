@@ -4,7 +4,7 @@ use thiserror::Error;
 
 #[derive(Clone, Copy, Debug)]
 struct BinOperands {
-    values: (usize, usize),
+    values: (isize, isize),
     destination: Address,
 }
 
@@ -19,11 +19,11 @@ enum OpCode {
 
 #[derive(Error, Debug)]
 #[error("unknown operation {0}")]
-pub struct InvalidOpCode(usize);
+pub struct InvalidOpCode(isize);
 
-impl TryFrom<usize> for OpCode {
+impl TryFrom<isize> for OpCode {
     type Error = InvalidOpCode;
-    fn try_from(op: usize) -> Result<OpCode, Self::Error> {
+    fn try_from(op: isize) -> Result<OpCode, Self::Error> {
         let code = match op % 100 {
             1 => OpCode::Add,
             2 => OpCode::Mul,
@@ -59,15 +59,20 @@ enum ExecutionErrorInner {
         position: ProgramCounter,
         address: Address,
     },
+    #[snafu(display("execution error: attempted to create an address from a negative value {} at {}", value, position))]
+    InvalidAddress {
+        position: ProgramCounter,
+        value: isize,
+    },
 }
 
 #[derive(Clone, Debug)]
 pub struct Program {
-    data: Vec<usize>,
+    data: Vec<isize>,
 }
 
 impl Program {
-    pub fn from_vec(data: Vec<usize>) -> Self {
+    pub fn from_vec(data: Vec<isize>) -> Self {
         Self { data }
     }
 
@@ -78,7 +83,7 @@ impl Program {
         let data = raw_data.split(',')
             .filter(|op| !op.is_empty())
             .map(|op| op.trim().parse().map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e)))
-            .collect::<io::Result<Vec<usize>>>()?;
+            .collect::<io::Result<Vec<isize>>>()?;
 
         Ok(Self::from_vec(data))
     }
@@ -87,11 +92,11 @@ impl Program {
         Address::new(self.data.len())
     }
 
-    pub fn try_read(&self, address: Address) -> Option<usize> {
+    pub fn try_read(&self, address: Address) -> Option<isize> {
         self.data.get(address.0).copied()
     }
 
-    pub fn try_write(&mut self, address: Address, value: usize) -> Option<usize> {
+    pub fn try_write(&mut self, address: Address, value: isize) -> Option<isize> {
         let sloc = self.data.get_mut(address.0)?;
         Some(mem::replace(sloc, value))
     }
@@ -145,14 +150,22 @@ impl Address {
     pub const fn new(addr: usize) -> Self {
         Self(addr)
     }
+
+    pub fn try_from_value(value: isize) -> Option<Self> {
+        if value >= 0 {
+            Some(Self::new(value as usize))
+        } else {
+            None
+        }
+    }
 }
 
 #[derive(Clone, Copy, Debug)]
-struct ParameterModes(usize);
+struct ParameterModes(isize);
 
 impl ParameterModes {
     fn for_param(self, idx: usize) -> Result<ParameterMode, InvalidParameterMode> {
-        ParameterMode::try_from((self.0 / (10usize.pow(idx as u32))) % 10)
+        ParameterMode::try_from((self.0 / (10isize.pow(idx as u32))) % 10)
     }
 }
 
@@ -168,9 +181,9 @@ impl Default for ParameterMode {
     }
 }
 
-impl TryFrom<usize> for ParameterMode {
+impl TryFrom<isize> for ParameterMode {
     type Error = InvalidParameterMode;
-    fn try_from(mode: usize) -> Result<Self, Self::Error> {
+    fn try_from(mode: isize) -> Result<Self, Self::Error> {
         match mode {
             0 => Ok(ParameterMode::Position),
             1 => Ok(ParameterMode::Immediate),
@@ -181,14 +194,14 @@ impl TryFrom<usize> for ParameterMode {
 
 #[derive(Error, Debug)]
 #[error("invalid parameter mode {0}")]
-pub struct InvalidParameterMode(usize);
+pub struct InvalidParameterMode(isize);
 
 #[derive(Debug)]
 pub struct Executable {
     program: Program,
     pc: ProgramCounter,
-    input: VecDeque<usize>,
-    output: Vec<usize>,
+    input: VecDeque<isize>,
+    output: Vec<isize>,
 }
 
 impl From<Program> for Executable {
@@ -203,12 +216,12 @@ impl From<Program> for Executable {
 }
 
 impl Executable {
-    pub fn set_input(&mut self, input: impl IntoIterator<Item = usize>) {
+    pub fn set_input(&mut self, input: impl IntoIterator<Item = isize>) {
         self.input.clear();
         self.input.extend(input);
     }
 
-    pub fn output(&self) -> &[usize] {
+    pub fn output(&self) -> &[isize] {
         &self.output
     }
 
@@ -220,24 +233,24 @@ impl Executable {
         &mut self.program
     }
 
-    fn exec_read(&self, address: Address) -> Result<usize, ExecutionErrorInner> {
+    fn exec_read(&self, address: Address) -> Result<isize, ExecutionErrorInner> {
         self.program.try_read(address).ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess { address, position: self.pc })
     }
 
-    fn read_param(&self, modes: ParameterModes, idx: usize) -> Result<usize, ExecutionErrorInner> {
+    fn read_param(&self, modes: ParameterModes, idx: usize) -> Result<isize, ExecutionErrorInner> {
         let mode = modes.for_param(idx).context(BadParameterMode { position: self.pc, index: idx })?;
-        let parameter = self.exec_read(self.pc.param(idx))?;
+        let value = self.exec_read(self.pc.param(idx))?;
 
         match mode {
             ParameterMode::Position => {
-                let address = Address::new(parameter);
+                let address = Address::try_from_value(value).ok_or_else(|| ExecutionErrorInner::InvalidAddress { value, position: self.pc })?;
                 self.exec_read(address)
             }
-            ParameterMode::Immediate => Ok(parameter),
+            ParameterMode::Immediate => Ok(value),
         }
     }
 
-    fn exec_write(&mut self, address: Address, value: usize) -> Result<usize, ExecutionErrorInner> {
+    fn exec_write(&mut self, address: Address, value: isize) -> Result<isize, ExecutionErrorInner> {
         self.program.try_write(address, value).ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess { address, position: self.pc })
     }
 
@@ -249,8 +262,8 @@ impl Executable {
                 OpCode::Halt => break,
                 OpCode::Add => self.execute_binary_op(ops::Add::add)?,
                 OpCode::Mul => self.execute_binary_op(ops::Mul::mul)?,
-                OpCode::Input => self.execute_io_op(Self::execute_input)?,
-                OpCode::Output => self.execute_io_op(Self::execute_output)?,
+                OpCode::Input => self.execute_input()?,
+                OpCode::Output => self.execute_output()?,
             };
         }
 
@@ -266,37 +279,38 @@ impl Executable {
         }
 
         let modes = ParameterModes(self.exec_read(self.pc.address())? / 100);
+        let destination = self.exec_read(self.pc.param(2))?;
 
         Ok(BinOperands {
             values: (self.read_param(modes, 0)?, self.read_param(modes, 1)?),
-            destination: Address::new(self.exec_read(self.pc.param(2))?),
+            destination: Address::try_from_value(destination).ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: destination, position: self.pc })?,
         })
     }    
 
-    fn execute_binary_op(&mut self, f: fn(usize, usize) -> usize) -> Result<(), ExecutionErrorInner> {
+    fn execute_binary_op(&mut self, f: fn(isize, isize) -> isize) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands()?;
         let result = f(operands.values.0, operands.values.1);
 
         self.exec_write(operands.destination, result)?;
 
-        Ok(self.pc.advance(4))
-    }
-
-    fn execute_io_op(&mut self, f: fn(&mut Executable, Address) -> Result<(), ExecutionErrorInner>) -> Result<(), ExecutionErrorInner> {
-        let address = Address::new(self.exec_read(self.pc.param(0))?);
-        f(self, address)?;
-        Ok(self.pc.advance(2))
+        self.pc.advance(4);
+        Ok(())
     }
     
-    fn execute_input(&mut self, address: Address) -> Result<(), ExecutionErrorInner> {
-        let value = self.input.pop_front().expect("unexpected end of input");
-        self.exec_write(address, value)?;
+    fn execute_input(&mut self) -> Result<(), ExecutionErrorInner> {
+        let sloc = self.exec_read(self.pc.param(0))?;
+        let address = Address::try_from_value(sloc).ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: sloc, position: self.pc })?;
+        let in_value = self.input.pop_front().expect("unexpected end of input");
+        self.exec_write(address, in_value)?;
+        self.pc.advance(2);
         Ok(())
     }
 
-    fn execute_output(&mut self, address: Address) -> Result<(), ExecutionErrorInner>  {
-        let value = self.exec_read(address)?;
+    fn execute_output(&mut self) -> Result<(), ExecutionErrorInner>  {
+        let modes = ParameterModes(self.exec_read(self.pc.address())? / 100);
+        let value = self.read_param(modes, 0)?;
         self.output.push(value);
+        self.pc.advance(2);
         Ok(())
     }
 }
