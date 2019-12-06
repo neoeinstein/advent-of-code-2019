@@ -15,7 +15,7 @@ impl Program {
         Self { data }
     }
 
-    /// Reads and parses a program from an `io::Read`er
+    /// Constructs a program from a string
     ///
     /// Expected format is a series of signed ASCII integers separated by
     /// commas. Whitespace is allowed between numbers and commas.
@@ -28,11 +28,8 @@ impl Program {
     /// 99,
     /// 30,40,50
     /// ```
-    pub fn from_reader(input: &mut dyn io::Read) -> io::Result<Program> {
-        let mut raw_data = String::new();
-        input.read_to_string(&mut raw_data)?;
-
-        let data = raw_data
+    pub fn from_str(input: &str) -> io::Result<Program> {
+        let data = input
             .split(',')
             .filter(|op| !op.is_empty())
             .map(|op| {
@@ -43,6 +40,16 @@ impl Program {
             .collect::<io::Result<Vec<ProgramValue>>>()?;
 
         Ok(Self::from_vec(data))
+    }
+
+    /// Reads and parses a program from an `io::Read`er
+    ///
+    /// This function will read in the entire dataset before parsing.
+    pub fn from_reader(input: &mut dyn io::Read) -> io::Result<Program> {
+        let mut raw_data = String::new();
+        input.read_to_string(&mut raw_data)?;
+
+        Self::from_str(&raw_data)
     }
 
     /// Provides immutable access to the underlying program data

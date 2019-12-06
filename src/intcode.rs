@@ -3,12 +3,10 @@
 //! ## Example
 //!
 //! ```
-//! use std::io::Cursor;
 //! use advent_of_code_2019::intcode::{Address, Executable, Program};
 //!
 //! const PROGRAM_DATA: &str = "1,1,1,4,99,5,6,0,99";
-//! let program = Program::from_reader(&mut Cursor::new(PROGRAM_DATA))
-//!     .expect("valid program");
+//! let program = Program::from_str(PROGRAM_DATA).expect("valid program");
 //!
 //! let mut exe = Executable::from(program);
 //!
@@ -34,7 +32,6 @@ mod tests {
     use super::{Executable, Program};
     use anyhow::Result;
     use pretty_assertions::assert_eq;
-    use std::io;
 
     const PUZ_2_EXAMPLE_1: &str = "1,9,10,3,2,3,11,0,99,30,40,50";
     const PUZ_2_EXAMPLE_1_EXPECTED: &str = "3500,9,10,70,2,3,11,0,99,30,40,50";
@@ -73,8 +70,8 @@ mod tests {
     }
 
     fn verify_final_state_test(initial: &str, expected: &str) -> Result<()> {
-        let program = Program::from_reader(&mut io::Cursor::new(initial))?;
-        let expected = Program::from_reader(&mut io::Cursor::new(expected))?;
+        let program = Program::from_str(initial)?;
+        let expected = Program::from_str(expected)?;
 
         let mut exe = Executable::from(program);
 
@@ -232,7 +229,7 @@ mod tests {
     fn run_diagnostics(system: i32) -> Result<Executable> {
         const PROGRAM: &str = include_str!("../inputs/input-05");
 
-        let program = Program::from_reader(&mut io::Cursor::new(PROGRAM))?;
+        let program = Program::from_str(PROGRAM)?;
 
         let mut exe = Executable::from(program);
 
@@ -250,7 +247,7 @@ mod tests {
     }
 
     fn run_program_test(program_data: &str, input: Vec<i32>, expected: &[i32]) -> Result<()> {
-        let program = Program::from_reader(&mut io::Cursor::new(program_data))?;
+        let program = Program::from_str(program_data)?;
 
         let mut exe = Executable::from(program);
 
