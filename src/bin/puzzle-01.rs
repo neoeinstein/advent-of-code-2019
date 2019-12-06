@@ -26,10 +26,102 @@ fn parse_input() -> Vec<usize> {
 }
 
 fn main() {
+    let calc = if cfg!(feature = "part-1") {
+        calculate_fuel
+    } else {
+        calculate_module_fuel
+    };
+
     let input = parse_input();
     let total_fuel_requirement: usize = input.into_iter()
-        .map(calculate_module_fuel)
+        .map(calc)
         .sum();
     
     println!("{}", total_fuel_requirement);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::{calculate_fuel, calculate_module_fuel};
+    use pretty_assertions::assert_eq;
+
+    #[test]
+    fn calculate_fuel_12() {
+        const MASS: usize = 12;
+        const EXPECTED: usize = 2;
+
+        let actual = calculate_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_fuel_14() {
+        const MASS: usize = 14;
+        const EXPECTED: usize = 2;
+
+        let actual = calculate_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_fuel_1969() {
+        const MASS: usize = 1969;
+        const EXPECTED: usize = 654;
+
+        let actual = calculate_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_fuel_100756() {
+        const MASS: usize = 100756;
+        const EXPECTED: usize = 33583;
+
+        let actual = calculate_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_module_fuel_12() {
+        const MASS: usize = 12;
+        const EXPECTED: usize = 2;
+
+        let actual = calculate_module_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_module_fuel_14() {
+        const MASS: usize = 14;
+        const EXPECTED: usize = 2;
+
+        let actual = calculate_module_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_module_fuel_1969() {
+        const MASS: usize = 1969;
+        const EXPECTED: usize = 966;
+
+        let actual = calculate_module_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
+
+    #[test]
+    fn calculate_module_fuel_100756() {
+        const MASS: usize = 100756;
+        const EXPECTED: usize = 50346;
+
+        let actual = calculate_module_fuel(MASS);
+
+        assert_eq!(EXPECTED, actual);
+    }
 }

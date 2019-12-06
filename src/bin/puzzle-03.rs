@@ -241,3 +241,63 @@ fn main() {
 
     println!("{:?}", dist);
 }
+
+#[cfg(test)]
+mod tests {
+    use super::{CandidatePoint, Wire};
+    use pretty_assertions::assert_eq;
+
+    const WIRE_A1: &str = "R75,D30,R83,U83,L12,D49,R71,U7,L72";
+    const WIRE_A2: &str = "U62,R66,U55,R34,D71,R55,D58,R83";
+    const WIRE_B1: &str = "R98,U47,R26,D63,R33,U87,L62,D20,R33,U53,R51";
+    const WIRE_B2: &str = "U98,R91,D20,R16,D67,R40,U7,R15,U6,R7";
+
+    #[test]
+    fn least_manhattan_distance_a() {
+        let wire1: Wire = WIRE_A1.parse().unwrap();
+        let wire2: Wire = WIRE_A2.parse().unwrap();
+        
+        const EXPECTED: usize = 159;
+
+        least_distance_to_closest_intersection(wire1, wire2, CandidatePoint::manhattan_distance_from_origin, EXPECTED);
+    }
+
+    #[test]
+    fn least_manhattan_distance_b() {
+        let wire1: Wire = WIRE_B1.parse().unwrap();
+        let wire2: Wire = WIRE_B2.parse().unwrap();
+        
+        const EXPECTED: usize = 135;
+
+        least_distance_to_closest_intersection(wire1, wire2, CandidatePoint::manhattan_distance_from_origin, EXPECTED);
+    }
+
+    #[test]
+    fn least_wire_delay_a() {
+        let wire1: Wire = WIRE_A1.parse().unwrap();
+        let wire2: Wire = WIRE_A2.parse().unwrap();
+        
+        const EXPECTED: usize = 610;
+
+        least_distance_to_closest_intersection(wire1, wire2, CandidatePoint::wire_delay_to_point, EXPECTED);
+    }
+
+    #[test]
+    fn least_wire_delay_b() {
+        let wire1: Wire = WIRE_B1.parse().unwrap();
+        let wire2: Wire = WIRE_B2.parse().unwrap();
+        
+        const EXPECTED: usize = 410;
+
+        least_distance_to_closest_intersection(wire1, wire2, CandidatePoint::wire_delay_to_point, EXPECTED);
+    }
+
+    fn least_distance_to_closest_intersection(wire1: Wire, wire2: Wire, distance_calc: fn(CandidatePoint) -> usize, expected: usize) {
+        let actual = wire1.segments.iter()
+            .filter_map(|seg| wire2.find_intersections(seg, distance_calc))
+            .min()
+            .unwrap();
+
+        assert_eq!(expected, actual);
+    }
+}

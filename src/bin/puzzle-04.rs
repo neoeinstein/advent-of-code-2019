@@ -4,13 +4,11 @@ use std::{
 };
 use advent_of_code_2019::get_input_reader;
 
-struct DigitIterator {
-    x: u32,
-}
+struct DigitIterator(u32);
 
 impl From<u32> for DigitIterator {
     fn from(x: u32) -> Self {
-        Self { x }
+        Self(x)
     }
 }
 
@@ -19,11 +17,11 @@ impl Iterator for DigitIterator
     type Item = u8;
 
     fn next(&mut self) -> Option<Self::Item> {
-        if self.x == 0 {
+        if self.0 == 0 {
             return None;
         }
-        let (div, rem) = (self.x / 10, self.x % 10);
-        self.x = div;
+        let (div, rem) = (self.0 / 10, self.0 % 10);
+        self.0 = div;
         Some(rem as u8)
     }
 }
@@ -84,7 +82,10 @@ fn parse_input() -> ops::RangeInclusive<u32> {
 fn main() {
     let range = parse_input();
 
-    let result = range.filter(digits_are_in_increasing_order).filter(contains_a_proper_pair).count();
+    let result = range
+        .filter(digits_are_in_increasing_order)
+        .filter(contains_a_proper_pair)
+        .count();
 
     println!("Count: {}", result);
 }
