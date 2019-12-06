@@ -1,3 +1,22 @@
+//! Intcode emulation facilities
+//! 
+//! ## Example
+//! 
+//! ```
+//! use std::io::Cursor;
+//! use advent_of_code_2019::intcode::{Address, Executable, Program};
+//!
+//! const PROGRAM_DATA: &str = "1,1,1,4,99,5,6,0,99";
+//! let program = Program::from_reader(&mut Cursor::new(PROGRAM_DATA))
+//!     .expect("valid program");
+//! 
+//! let mut exe = Executable::from(program);
+//! 
+//! exe.execute().expect("successful execution");
+//! 
+//! assert_eq!(Some(30), exe.memory().try_read(Address::new(0)));
+//! ```
+
 mod address;
 mod decoder;
 mod executor;

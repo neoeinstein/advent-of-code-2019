@@ -12,6 +12,8 @@ use super::{
     Program,
 };
 
+/// A counter which keeps track of the currently executing instruction
+/// in the Intcode executor
 #[derive(Clone, Copy, Debug)]
 struct ProgramCounter(usize);
 
@@ -23,34 +25,39 @@ impl fmt::Display for ProgramCounter {
 
 impl Default for ProgramCounter {
     fn default() -> Self {
-        Self::new()
+        Self::START
     }
 }
 
 impl ProgramCounter {
+    /// A program counter initialized to start from the first address in memory
     const START: Self = Self(0);
 
-    const fn new() -> Self {
-        Self(0)
-    }
-
+    /// Obtains the address of parameter `idx` for the current instruction
     const fn param(self, idx: u8) -> Address {
         Address::new(self.0 + (idx as usize) + 1)
     }
 
+    /// Advances the program counter by the specified offset
     fn advance(&mut self, cnt: usize) {
         self.0 += cnt;
     }
 
+    /// Jumps to the specified address
     fn jump(&mut self, address: Address) {
         self.0 = address.value()
     }
 
+    /// Gets the address of the currently executing instruction
     const fn address(self) -> Address {
         Address::new(self.0)
     }
 }
 
+/// The Intcode interpreter
+/// 
+/// Executes programs, keeps track of current position, and relays input and output
+/// during execution.
 #[derive(Debug)]
 pub struct Executable {
     program: Program,
@@ -71,19 +78,23 @@ impl From<Program> for Executable {
 }
 
 impl Executable {
+    /// Clears any existing input and updates it to the passed in value
     pub fn set_input(&mut self, input: impl IntoIterator<Item = isize>) {
         self.input.clear();
         self.input.extend(input);
     }
 
+    /// Current program outputs
     pub fn output(&self) -> &[isize] {
         &self.output
     }
 
+    /// Access to the program data in the executable's memory
     pub fn memory(&mut self) -> &Program {
         &self.program
     }
 
+    /// Mutable access to the program data in the executable's memory
     pub fn memory_mut(&mut self) -> &mut Program {
         &mut self.program
     }
@@ -111,6 +122,8 @@ impl Executable {
             .ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess { address, position: self.pc })
     }
 
+    /// Executes the Intcode program until a halt instruction is encountered or an invalid operation
+    /// causes termination due to an `ExecutionError`
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
         while self.pc.address() < self.program.max_address() {
             let opcode = OpCode::try_from(self.exec_read(self.pc.address())?)
@@ -208,6 +221,13 @@ impl Executable {
     }
 }
 
+/// An error during execution
+/// 
+/// Possible errors include:
+/// 
+/// * Execution of an invalid opcode
+/// * Access to an address beyond the memory limit
+/// * Attempt to interpret a negative value as an address
 #[derive(Error, Debug)]
 #[error("{0}")]
 pub struct ExecutionError(#[from] ExecutionErrorInner);
