@@ -1,5 +1,5 @@
 use super::{
-    decoder::{InvalidOpCode, OpCode, Operation, ParameterMode, ParameterModes},
+    decoder::{Instruction, OpCode, ParameterMode, ParameterModes},
     Address, Program, ProgramValue,
 };
 use snafu::{ResultExt, Snafu};
@@ -141,19 +141,21 @@ impl Executable {
     /// an invalid operation causes termination due to an `ExecutionError`
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
         while self.pc.address() < self.program.max_address() {
-            let opcode = OpCode::try_from(self.exec_read(self.pc.address())?)
-                .context(InvalidOperation { position: self.pc })?;
+            let instruction = Instruction::try_from(self.exec_read(self.pc.address())?)
+                .context(InvalidInstruction { position: self.pc })?;
 
-            match opcode.op() {
-                Operation::Halt => break,
-                Operation::Add => self.execute_binary_op(opcode.param_modes(), ops::Add::add)?,
-                Operation::Mul => self.execute_binary_op(opcode.param_modes(), ops::Mul::mul)?,
-                Operation::Input => self.execute_input()?,
-                Operation::Output => self.execute_output(opcode.param_modes())?,
-                Operation::JumpNonZero => self.execute_jump_cond(opcode.param_modes(), true)?,
-                Operation::JumpZero => self.execute_jump_cond(opcode.param_modes(), false)?,
-                Operation::LessThan => self.execute_cmp(opcode.param_modes(), ProgramValue::lt)?,
-                Operation::Equal => self.execute_cmp(opcode.param_modes(), ProgramValue::eq)?,
+            match instruction.opcode() {
+                OpCode::Halt => break,
+                OpCode::Add => self.execute_binary_op(instruction.param_modes(), ops::Add::add)?,
+                OpCode::Mul => self.execute_binary_op(instruction.param_modes(), ops::Mul::mul)?,
+                OpCode::Input => self.execute_input()?,
+                OpCode::Output => self.execute_output(instruction.param_modes())?,
+                OpCode::JumpNonZero => self.execute_jump_cond(instruction.param_modes(), true)?,
+                OpCode::JumpZero => self.execute_jump_cond(instruction.param_modes(), false)?,
+                OpCode::LessThan => {
+                    self.execute_cmp(instruction.param_modes(), ProgramValue::lt)?
+                }
+                OpCode::Equal => self.execute_cmp(instruction.param_modes(), ProgramValue::eq)?,
             };
         }
 
@@ -266,7 +268,7 @@ impl Executable {
 ///
 /// Possible errors include:
 ///
-/// * Execution of an invalid opcode
+/// * Execution of an invalid instruction
 /// * Access to an address beyond the memory limit
 /// * Attempt to interpret a negative value as an address
 #[derive(Error, Debug)]
@@ -275,9 +277,9 @@ pub struct ExecutionError(#[from] ExecutionErrorInner);
 
 #[derive(Snafu, Debug)]
 enum ExecutionErrorInner {
-    #[snafu(display("execution error: invalid opcode at {}", position))]
-    InvalidOperation {
-        source: InvalidOpCode,
+    #[snafu(display("execution error: invalid instruction at {}", position))]
+    InvalidInstruction {
+        source: super::decoder::InvalidInstruction,
         position: ProgramCounter,
     },
     #[snafu(display(

@@ -2,65 +2,85 @@ use super::ProgramValue;
 use snafu::Snafu;
 use std::convert::TryFrom;
 
+/// Describes the instruction, including the operation to be executed as well as
+/// how to interpret any parameters that have been provided
 #[derive(Clone, Copy, Debug)]
-pub struct OpCode {
-    op: Operation,
+pub struct Instruction {
+    opcode: OpCode,
     modes: ParameterModes,
 }
 
-impl OpCode {
-    pub const fn op(self) -> Operation {
-        self.op
+impl Instruction {
+    /// Gets the instruction's `OpCode`
+    pub const fn opcode(self) -> OpCode {
+        self.opcode
     }
 
+    /// Gets a structure with information on how to interpret the instruction's
+    /// parameters
     pub const fn param_modes(self) -> ParameterModes {
         self.modes
     }
 }
 
-impl TryFrom<ProgramValue> for OpCode {
-    type Error = InvalidOpCode;
-    fn try_from(value: ProgramValue) -> Result<Self, Self::Error> {
-        if value < 0 {
-            return Err(InvalidOpCode::NegativeValue { opcode: value });
+impl TryFrom<ProgramValue> for Instruction {
+    type Error = InvalidInstruction;
+    fn try_from(raw: ProgramValue) -> Result<Self, Self::Error> {
+        if raw < 0 {
+            return Err(InvalidInstruction::NegativeValue { opcode: raw });
         }
-        let opcode = value as usize;
+        let raw = raw as usize;
+        let opcode = OpCode::try_from(raw)?;
+        let modes = ParameterModes::try_from(raw)?;
 
-        let op = Operation::try_from(opcode)?;
-        let modes = ParameterModes::try_from(opcode)?;
-
-        Ok(Self { op, modes })
+        Ok(Self { opcode, modes })
     }
 }
 
+/// Describes the operation to execute
+///
+/// The number in the description refers to the instruction stem (`instruction %
+/// 100`), which specifies the operation to execute as well as implying the
+/// quantity of parameters required.
 #[derive(Clone, Copy, Debug)]
-pub enum Operation {
+pub enum OpCode {
+    /// (`99`) Halts the program
     Halt,
+    /// (`01`) Adds params 0 and 1, stores result in param 2
     Add,
+    /// (`02`) Multiplies params 0 and 1, stores result in param 2
     Mul,
+    /// (`03`) Stores next input value in param 0
     Input,
+    /// (`04`) Stores param 0 as next output value
     Output,
+    /// (`05`) If param 0 is non-zero, jumps the program counter to param 1
     JumpNonZero,
+    /// (`06`) If param 0 is zero, jumps the program counter to param 1
     JumpZero,
+    /// (`07`) If param 0 is less than param 1, stores `1` in param 2, otherwise
+    /// stores `0`
     LessThan,
+    /// (`08`) If param 0 is equal to param 1, stores `1` in param 2, otherwise
+    /// stores `0`
     Equal,
 }
 
-impl TryFrom<usize> for Operation {
-    type Error = InvalidOpCode;
+impl TryFrom<usize> for OpCode {
+    type Error = InvalidInstruction;
     fn try_from(opcode: usize) -> Result<Self, Self::Error> {
         let code = opcode % 100;
         let op = match code {
-            1 => Operation::Add,
-            2 => Operation::Mul,
-            3 => Operation::Input,
-            4 => Operation::Output,
-            5 => Operation::JumpNonZero,
-            6 => Operation::JumpZero,
-            7 => Operation::LessThan,
-            8 => Operation::Equal,
-            99 => Operation::Halt,
-            _ => return Err(InvalidOpCode::UnknownOpcode { opcode }),
+            1 => OpCode::Add,
+            2 => OpCode::Mul,
+            3 => OpCode::Input,
+            4 => OpCode::Output,
+            5 => OpCode::JumpNonZero,
+            6 => OpCode::JumpZero,
+            7 => OpCode::LessThan,
+            8 => OpCode::Equal,
+            99 => OpCode::Halt,
+            _ => return Err(InvalidInstruction::UnknownOpcode { opcode }),
         };
 
         Ok(op)
@@ -78,14 +98,14 @@ impl ParameterModes {
 }
 
 impl TryFrom<usize> for ParameterModes {
-    type Error = InvalidOpCode;
+    type Error = InvalidInstruction;
     fn try_from(opcode: usize) -> Result<Self, Self::Error> {
         let modes = opcode / 100;
         let mut m = modes;
         let mut idx = 0;
         while m != 0 {
             if ParameterMode::from_value(m % 10).is_none() {
-                return Err(InvalidOpCode::InvalidParameterMode { opcode, index: idx });
+                return Err(InvalidInstruction::InvalidParameterMode { opcode, index: idx });
             }
             m /= 10;
             idx += 1;
@@ -96,7 +116,10 @@ impl TryFrom<usize> for ParameterModes {
 
 #[derive(Clone, Copy, Debug)]
 pub enum ParameterMode {
+    /// The parameter is an address reference; the actual parameter value should
+    /// be retrieved from that address
     Position,
+    /// The parameter is the value to be used for the operation
     Immediate,
 }
 
@@ -117,7 +140,7 @@ impl ParameterMode {
 }
 
 #[derive(Snafu, Debug)]
-pub enum InvalidOpCode {
+pub enum InvalidInstruction {
     #[snafu(display("opcode cannot be negative (opcode = {})", opcode))]
     NegativeValue { opcode: ProgramValue },
     #[snafu(display("unknown opcode (opcode = {})", opcode))]

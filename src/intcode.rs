@@ -29,7 +29,7 @@ pub type ProgramValue = i32;
 
 #[cfg(test)]
 mod tests {
-    use super::{Executable, Program};
+    use super::{Executable, Program, ProgramValue};
     use anyhow::Result;
     use pretty_assertions::assert_eq;
 
@@ -87,10 +87,10 @@ mod tests {
     const IMM_IS_INPUT_EQUAL_TO_8: &str = "3,3,1108,-1,8,3,4,3,99";
     const IMM_IS_INPUT_LESS_THAN_8: &str = "3,3,1107,-1,8,3,4,3,99";
 
-    const TRUE: &[i32] = &[1];
-    const ONE: &[i32] = &[1];
-    const FALSE: &[i32] = &[0];
-    const ZERO: &[i32] = &[0];
+    const TRUE: &[ProgramValue] = &[1];
+    const ONE: &[ProgramValue] = &[1];
+    const FALSE: &[ProgramValue] = &[0];
+    const ZERO: &[ProgramValue] = &[0];
 
     #[test]
     fn position_mode_1_is_equal_to_8() -> Result<()> {
@@ -226,7 +226,7 @@ mod tests {
         Ok(())
     }
 
-    fn run_diagnostics(system: i32) -> Result<Executable> {
+    fn run_diagnostics(system: ProgramValue) -> Result<Executable> {
         const PROGRAM: &str = include_str!("../inputs/input-05");
 
         let program = Program::from_str(PROGRAM)?;
@@ -246,7 +246,11 @@ mod tests {
         Ok(exe)
     }
 
-    fn run_program_test(program_data: &str, input: Vec<i32>, expected: &[i32]) -> Result<()> {
+    fn run_program_test(
+        program_data: &str,
+        input: Vec<ProgramValue>,
+        expected: &[ProgramValue],
+    ) -> Result<()> {
         let program = Program::from_str(program_data)?;
 
         let mut exe = Executable::from(program);
