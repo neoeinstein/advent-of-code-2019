@@ -1,4 +1,4 @@
-use super::Address;
+use super::{Address, ProgramValue};
 use std::{io, mem};
 
 /// An Intcode program
@@ -6,12 +6,12 @@ use std::{io, mem};
 /// Intcode programs are a vector of signed integers.
 #[derive(Clone, Debug, PartialEq, Eq)]
 pub struct Program {
-    data: Vec<isize>,
+    data: Vec<ProgramValue>,
 }
 
 impl Program {
     /// Constructs a program from a vector of data
-    pub fn from_vec(data: Vec<isize>) -> Self {
+    pub fn from_vec(data: Vec<ProgramValue>) -> Self {
         Self { data }
     }
 
@@ -40,13 +40,13 @@ impl Program {
                     .parse()
                     .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))
             })
-            .collect::<io::Result<Vec<isize>>>()?;
+            .collect::<io::Result<Vec<ProgramValue>>>()?;
 
         Ok(Self::from_vec(data))
     }
 
     /// Provides immutable access to the underlying program data
-    pub fn data(&self) -> &[isize] {
+    pub fn data(&self) -> &[ProgramValue] {
         &self.data
     }
 
@@ -59,7 +59,7 @@ impl Program {
     /// Attempts to read a value from a given address
     ///
     /// Returns `None` if the address is outside the bounds of program memory.
-    pub fn try_read(&self, address: Address) -> Option<isize> {
+    pub fn try_read(&self, address: Address) -> Option<ProgramValue> {
         self.data.get(address.value()).copied()
     }
 
@@ -67,7 +67,7 @@ impl Program {
     ///
     /// Returns the prior value at that address, or `None` if the address was
     /// outside the bounds of program memory.
-    pub fn try_write(&mut self, address: Address, value: isize) -> Option<isize> {
+    pub fn try_write(&mut self, address: Address, value: ProgramValue) -> Option<ProgramValue> {
         let sloc = self.data.get_mut(address.value())?;
         Some(mem::replace(sloc, value))
     }

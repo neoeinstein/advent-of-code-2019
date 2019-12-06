@@ -1,3 +1,4 @@
+use super::ProgramValue;
 use snafu::Snafu;
 use std::convert::TryFrom;
 
@@ -17,9 +18,9 @@ impl OpCode {
     }
 }
 
-impl TryFrom<isize> for OpCode {
+impl TryFrom<ProgramValue> for OpCode {
     type Error = InvalidOpCode;
-    fn try_from(value: isize) -> Result<Self, Self::Error> {
+    fn try_from(value: ProgramValue) -> Result<Self, Self::Error> {
         if value < 0 {
             return Err(InvalidOpCode::NegativeValue { opcode: value });
         }
@@ -118,7 +119,7 @@ impl ParameterMode {
 #[derive(Snafu, Debug)]
 pub enum InvalidOpCode {
     #[snafu(display("opcode cannot be negative (opcode = {})", opcode))]
-    NegativeValue { opcode: isize },
+    NegativeValue { opcode: ProgramValue },
     #[snafu(display("unknown opcode (opcode = {})", opcode))]
     UnknownOpcode { opcode: usize },
     #[snafu(display(

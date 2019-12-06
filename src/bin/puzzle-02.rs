@@ -144,7 +144,11 @@
 use advent_of_code_2019::{get_input_reader, intcode};
 use anyhow::{anyhow, Result};
 
-fn run_with_specific_state(program: intcode::Program, noun: isize, verb: isize) -> Result<isize> {
+fn run_with_specific_state(
+    program: intcode::Program,
+    noun: intcode::ProgramValue,
+    verb: intcode::ProgramValue,
+) -> Result<intcode::ProgramValue> {
     let mut p = intcode::Executable::from(program);
     p.memory_mut().try_write(intcode::Address::new(1), noun);
     p.memory_mut().try_write(intcode::Address::new(2), verb);
@@ -159,7 +163,10 @@ fn run_with_specific_state(program: intcode::Program, noun: isize, verb: isize) 
     Ok(output)
 }
 
-fn search_for_noun_and_verb(program: intcode::Program, target: isize) -> Result<()> {
+fn search_for_noun_and_verb(
+    program: intcode::Program,
+    target: intcode::ProgramValue,
+) -> Result<()> {
     for noun in 0..99 {
         for verb in 0..99 {
             let output = run_with_specific_state(program.clone(), noun, verb)?;

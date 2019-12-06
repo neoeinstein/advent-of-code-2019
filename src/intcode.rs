@@ -26,6 +26,9 @@ pub use address::Address;
 pub use executor::{Executable, ExecutionError};
 pub use program::Program;
 
+/// The quantum of data in program memory
+pub type ProgramValue = i32;
+
 #[cfg(test)]
 mod tests {
     use super::{Executable, Program};
@@ -87,10 +90,10 @@ mod tests {
     const IMM_IS_INPUT_EQUAL_TO_8: &str = "3,3,1108,-1,8,3,4,3,99";
     const IMM_IS_INPUT_LESS_THAN_8: &str = "3,3,1107,-1,8,3,4,3,99";
 
-    const TRUE: &[isize] = &[1];
-    const ONE: &[isize] = &[1];
-    const FALSE: &[isize] = &[0];
-    const ZERO: &[isize] = &[0];
+    const TRUE: &[i32] = &[1];
+    const ONE: &[i32] = &[1];
+    const FALSE: &[i32] = &[0];
+    const ZERO: &[i32] = &[0];
 
     #[test]
     fn position_mode_1_is_equal_to_8() -> Result<()> {
@@ -212,7 +215,7 @@ mod tests {
         assert!(exe.output()[..exe.output().len() - 2]
             .iter()
             .copied()
-            .all(|i| i == 0isize));
+            .all(|i| i == 0i32));
 
         Ok(())
     }
@@ -226,7 +229,7 @@ mod tests {
         Ok(())
     }
 
-    fn run_diagnostics(system: isize) -> Result<Executable> {
+    fn run_diagnostics(system: i32) -> Result<Executable> {
         const PROGRAM: &str = include_str!("../inputs/input-05");
 
         let program = Program::from_reader(&mut io::Cursor::new(PROGRAM))?;
@@ -246,7 +249,7 @@ mod tests {
         Ok(exe)
     }
 
-    fn run_program_test(program_data: &str, input: Vec<isize>, expected: &[isize]) -> Result<()> {
+    fn run_program_test(program_data: &str, input: Vec<i32>, expected: &[i32]) -> Result<()> {
         let program = Program::from_reader(&mut io::Cursor::new(program_data))?;
 
         let mut exe = Executable::from(program);

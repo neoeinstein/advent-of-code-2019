@@ -1,3 +1,4 @@
+use super::ProgramValue;
 use std::fmt;
 
 /// An address into the memory of an Intcode program
@@ -19,7 +20,7 @@ impl Address {
     /// Attempts to construct an `Address` from an Intcode value
     ///
     /// If the value is negative, `None` will be returned.
-    pub fn try_from_value(value: isize) -> Option<Self> {
+    pub fn try_from_value(value: ProgramValue) -> Option<Self> {
         if value >= 0 {
             Some(Self::new(value as usize))
         } else {

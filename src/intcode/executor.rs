@@ -1,6 +1,6 @@
 use super::{
     decoder::{InvalidOpCode, OpCode, Operation, ParameterMode, ParameterModes},
-    Address, Program,
+    Address, Program, ProgramValue,
 };
 use snafu::{ResultExt, Snafu};
 use std::{collections::VecDeque, convert::TryFrom, fmt, ops};
@@ -56,8 +56,8 @@ impl ProgramCounter {
 pub struct Executable {
     program: Program,
     pc: ProgramCounter,
-    input: VecDeque<isize>,
-    output: Vec<isize>,
+    input: VecDeque<ProgramValue>,
+    output: Vec<ProgramValue>,
 }
 
 impl From<Program> for Executable {
@@ -73,13 +73,13 @@ impl From<Program> for Executable {
 
 impl Executable {
     /// Clears any existing input and updates it to the passed in value
-    pub fn set_input(&mut self, input: impl IntoIterator<Item = isize>) {
+    pub fn set_input(&mut self, input: impl IntoIterator<Item = ProgramValue>) {
         self.input.clear();
         self.input.extend(input);
     }
 
     /// Current program outputs
-    pub fn output(&self) -> &[isize] {
+    pub fn output(&self) -> &[ProgramValue] {
         &self.output
     }
 
@@ -93,7 +93,7 @@ impl Executable {
         &mut self.program
     }
 
-    fn exec_read(&self, address: Address) -> Result<isize, ExecutionErrorInner> {
+    fn exec_read(&self, address: Address) -> Result<ProgramValue, ExecutionErrorInner> {
         self.program
             .try_read(address)
             .ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess {
@@ -102,7 +102,11 @@ impl Executable {
             })
     }
 
-    fn read_param(&self, modes: ParameterModes, idx: u8) -> Result<isize, ExecutionErrorInner> {
+    fn read_param(
+        &self,
+        modes: ParameterModes,
+        idx: u8,
+    ) -> Result<ProgramValue, ExecutionErrorInner> {
         let mode = modes.for_param(idx);
         let value = self.exec_read(self.pc.param(idx))?;
 
@@ -120,7 +124,11 @@ impl Executable {
         }
     }
 
-    fn exec_write(&mut self, address: Address, value: isize) -> Result<isize, ExecutionErrorInner> {
+    fn exec_write(
+        &mut self,
+        address: Address,
+        value: ProgramValue,
+    ) -> Result<ProgramValue, ExecutionErrorInner> {
         self.program.try_write(address, value).ok_or_else(|| {
             ExecutionErrorInner::OutOfBoundsAccess {
                 address,
@@ -144,8 +152,8 @@ impl Executable {
                 Operation::Output => self.execute_output(opcode.param_modes())?,
                 Operation::JumpNonZero => self.execute_jump_cond(opcode.param_modes(), true)?,
                 Operation::JumpZero => self.execute_jump_cond(opcode.param_modes(), false)?,
-                Operation::LessThan => self.execute_cmp(opcode.param_modes(), isize::lt)?,
-                Operation::Equal => self.execute_cmp(opcode.param_modes(), isize::eq)?,
+                Operation::LessThan => self.execute_cmp(opcode.param_modes(), ProgramValue::lt)?,
+                Operation::Equal => self.execute_cmp(opcode.param_modes(), ProgramValue::eq)?,
             };
         }
 
@@ -179,7 +187,7 @@ impl Executable {
     fn execute_binary_op(
         &mut self,
         modes: ParameterModes,
-        f: fn(isize, isize) -> isize,
+        f: fn(ProgramValue, ProgramValue) -> ProgramValue,
     ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
         let result = f(operands.values.0, operands.values.1);
@@ -237,7 +245,7 @@ impl Executable {
     fn execute_cmp(
         &mut self,
         modes: ParameterModes,
-        f: fn(&isize, &isize) -> bool,
+        f: fn(&ProgramValue, &ProgramValue) -> bool,
     ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
 
@@ -288,12 +296,12 @@ enum ExecutionErrorInner {
     ))]
     InvalidAddress {
         position: ProgramCounter,
-        value: isize,
+        value: ProgramValue,
     },
 }
 
 #[derive(Clone, Copy, Debug)]
 struct BinOperands {
-    values: (isize, isize),
+    values: (ProgramValue, ProgramValue),
     destination: Address,
 }
