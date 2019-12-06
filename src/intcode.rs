@@ -1,7 +1,7 @@
 //! Intcode emulation facilities
-//! 
+//!
 //! ## Example
-//! 
+//!
 //! ```
 //! use std::io::Cursor;
 //! use advent_of_code_2019::intcode::{Address, Executable, Program};
@@ -9,11 +9,11 @@
 //! const PROGRAM_DATA: &str = "1,1,1,4,99,5,6,0,99";
 //! let program = Program::from_reader(&mut Cursor::new(PROGRAM_DATA))
 //!     .expect("valid program");
-//! 
+//!
 //! let mut exe = Executable::from(program);
-//! 
+//!
 //! exe.execute().expect("successful execution");
-//! 
+//!
 //! assert_eq!(Some(30), exe.memory().try_read(Address::new(0)));
 //! ```
 
@@ -28,10 +28,10 @@ pub use program::Program;
 
 #[cfg(test)]
 mod tests {
-    use std::io;
-    use pretty_assertions::assert_eq;
-    use super::{Program, Executable};
+    use super::{Executable, Program};
     use anyhow::Result;
+    use pretty_assertions::assert_eq;
+    use std::io;
 
     const PUZ_2_EXAMPLE_1: &str = "1,9,10,3,2,3,11,0,99,30,40,50";
     const PUZ_2_EXAMPLE_1_EXPECTED: &str = "3500,9,10,70,2,3,11,0,99,30,40,50";
@@ -76,7 +76,7 @@ mod tests {
         let mut exe = Executable::from(program);
 
         exe.execute()?;
-        
+
         assert_eq!(&expected, exe.memory());
 
         Ok(())
@@ -86,7 +86,7 @@ mod tests {
     const POS_IS_INPUT_LESS_THAN_8: &str = "3,9,7,9,10,9,4,9,99,-1,8";
     const IMM_IS_INPUT_EQUAL_TO_8: &str = "3,3,1108,-1,8,3,4,3,99";
     const IMM_IS_INPUT_LESS_THAN_8: &str = "3,3,1107,-1,8,3,4,3,99";
-    
+
     const TRUE: &[isize] = &[1];
     const ONE: &[isize] = &[1];
     const FALSE: &[isize] = &[0];
@@ -209,7 +209,10 @@ mod tests {
     fn run_system_1_diagnostics() -> Result<()> {
         let exe = run_diagnostics(1)?;
 
-        assert!(exe.output()[..exe.output().len()-2].iter().copied().all(|i| i == 0isize));
+        assert!(exe.output()[..exe.output().len() - 2]
+            .iter()
+            .copied()
+            .all(|i| i == 0isize));
 
         Ok(())
     }
@@ -233,8 +236,12 @@ mod tests {
         exe.set_input(vec![system]);
 
         exe.execute()?;
-        
-        println!("system {} diagnostic code = {}", system, exe.output()[exe.output().len() - 1]);
+
+        println!(
+            "system {} diagnostic code = {}",
+            system,
+            exe.output()[exe.output().len() - 1]
+        );
 
         Ok(exe)
     }

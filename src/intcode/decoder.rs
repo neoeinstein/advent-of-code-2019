@@ -1,5 +1,5 @@
-use std::convert::TryFrom;
 use snafu::Snafu;
+use std::convert::TryFrom;
 
 #[derive(Clone, Copy, Debug)]
 pub struct OpCode {
@@ -21,17 +21,14 @@ impl TryFrom<isize> for OpCode {
     type Error = InvalidOpCode;
     fn try_from(value: isize) -> Result<Self, Self::Error> {
         if value < 0 {
-            return Err(InvalidOpCode::NegativeValue { opcode: value })
+            return Err(InvalidOpCode::NegativeValue { opcode: value });
         }
         let opcode = value as usize;
 
         let op = Operation::try_from(opcode)?;
         let modes = ParameterModes::try_from(opcode)?;
 
-        Ok(Self {
-            op,
-            modes,
-        })
+        Ok(Self { op, modes })
     }
 }
 
@@ -121,16 +118,13 @@ impl ParameterMode {
 #[derive(Snafu, Debug)]
 pub enum InvalidOpCode {
     #[snafu(display("opcode cannot be negative (opcode = {})", opcode))]
-    NegativeValue {
-        opcode: isize,
-    },
+    NegativeValue { opcode: isize },
     #[snafu(display("unknown opcode (opcode = {})", opcode))]
-    UnknownOpcode {
-        opcode: usize,
-    },
-    #[snafu(display("unknown parameter mode (opcode = {}, parameter index = {})", opcode, index))]
-    InvalidParameterMode {
-        opcode: usize,
-        index: usize,
-    },
+    UnknownOpcode { opcode: usize },
+    #[snafu(display(
+        "unknown parameter mode (opcode = {}, parameter index = {})",
+        opcode,
+        index
+    ))]
+    InvalidParameterMode { opcode: usize, index: usize },
 }

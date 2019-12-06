@@ -3,7 +3,7 @@ use std::{env, fs, io, path::PathBuf};
 pub mod intcode;
 
 fn get_input_filename() -> Option<PathBuf> {
-    let in_file = env::args().skip(1).next()?;
+    let in_file = env::args().nth(1)?;
     if in_file == "-" {
         None
     } else {
@@ -11,10 +11,13 @@ fn get_input_filename() -> Option<PathBuf> {
     }
 }
 
-/// Creates an input reader from the file specified on the command line (STDIN if not provided) 
+/// Creates an input reader from the file specified on the command line (STDIN
+/// if not provided)
 pub fn get_input_reader() -> Box<dyn io::BufRead> {
     match get_input_filename() {
-        Some(in_file) => Box::new(io::BufReader::new(fs::File::open(&in_file).expect("file should be openable"))),
+        Some(in_file) => Box::new(io::BufReader::new(
+            fs::File::open(&in_file).expect("file should be openable"),
+        )),
         None => Box::new(io::BufReader::new(io::stdin())),
     }
 }

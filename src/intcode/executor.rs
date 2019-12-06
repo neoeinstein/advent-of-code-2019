@@ -1,16 +1,10 @@
-use std::{
-    collections::VecDeque, 
-    convert::TryFrom, 
-    fmt, 
-    ops,
-};
-use snafu::{ResultExt, Snafu};
-use thiserror::Error;
 use super::{
     decoder::{InvalidOpCode, OpCode, Operation, ParameterMode, ParameterModes},
-    Address, 
-    Program,
+    Address, Program,
 };
+use snafu::{ResultExt, Snafu};
+use std::{collections::VecDeque, convert::TryFrom, fmt, ops};
+use thiserror::Error;
 
 /// A counter which keeps track of the currently executing instruction
 /// in the Intcode executor
@@ -55,9 +49,9 @@ impl ProgramCounter {
 }
 
 /// The Intcode interpreter
-/// 
-/// Executes programs, keeps track of current position, and relays input and output
-/// during execution.
+///
+/// Executes programs, keeps track of current position, and relays input and
+/// output during execution.
 #[derive(Debug)]
 pub struct Executable {
     program: Program,
@@ -100,7 +94,12 @@ impl Executable {
     }
 
     fn exec_read(&self, address: Address) -> Result<isize, ExecutionErrorInner> {
-        self.program.try_read(address).ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess { address, position: self.pc })
+        self.program
+            .try_read(address)
+            .ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess {
+                address,
+                position: self.pc,
+            })
     }
 
     fn read_param(&self, modes: ParameterModes, idx: u8) -> Result<isize, ExecutionErrorInner> {
@@ -109,8 +108,12 @@ impl Executable {
 
         match mode {
             ParameterMode::Position => {
-                let address = Address::try_from_value(value)
-                    .ok_or_else(|| ExecutionErrorInner::InvalidAddress { value, position: self.pc })?;
+                let address = Address::try_from_value(value).ok_or_else(|| {
+                    ExecutionErrorInner::InvalidAddress {
+                        value,
+                        position: self.pc,
+                    }
+                })?;
                 self.exec_read(address)
             }
             ParameterMode::Immediate => Ok(value),
@@ -118,17 +121,21 @@ impl Executable {
     }
 
     fn exec_write(&mut self, address: Address, value: isize) -> Result<isize, ExecutionErrorInner> {
-        self.program.try_write(address, value)
-            .ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess { address, position: self.pc })
+        self.program.try_write(address, value).ok_or_else(|| {
+            ExecutionErrorInner::OutOfBoundsAccess {
+                address,
+                position: self.pc,
+            }
+        })
     }
 
-    /// Executes the Intcode program until a halt instruction is encountered or an invalid operation
-    /// causes termination due to an `ExecutionError`
+    /// Executes the Intcode program until a halt instruction is encountered or
+    /// an invalid operation causes termination due to an `ExecutionError`
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
         while self.pc.address() < self.program.max_address() {
             let opcode = OpCode::try_from(self.exec_read(self.pc.address())?)
                 .context(InvalidOperation { position: self.pc })?;
-    
+
             match opcode.op() {
                 Operation::Halt => break,
                 Operation::Add => self.execute_binary_op(opcode.param_modes(), ops::Add::add)?,
@@ -145,7 +152,10 @@ impl Executable {
         Ok(())
     }
 
-    fn get_binary_operands(&self, modes: ParameterModes) -> Result<BinOperands, ExecutionErrorInner> {
+    fn get_binary_operands(
+        &self,
+        modes: ParameterModes,
+    ) -> Result<BinOperands, ExecutionErrorInner> {
         if self.pc.param(2) > self.program.max_address() {
             return Err(ExecutionErrorInner::OutOfBoundsAccess {
                 position: self.pc,
@@ -157,12 +167,20 @@ impl Executable {
 
         Ok(BinOperands {
             values: (self.read_param(modes, 0)?, self.read_param(modes, 1)?),
-            destination: Address::try_from_value(destination)
-                .ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: destination, position: self.pc })?,
+            destination: Address::try_from_value(destination).ok_or_else(|| {
+                ExecutionErrorInner::InvalidAddress {
+                    value: destination,
+                    position: self.pc,
+                }
+            })?,
         })
-    }    
+    }
 
-    fn execute_binary_op(&mut self, modes: ParameterModes, f: fn(isize, isize) -> isize) -> Result<(), ExecutionErrorInner> {
+    fn execute_binary_op(
+        &mut self,
+        modes: ParameterModes,
+        f: fn(isize, isize) -> isize,
+    ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
         let result = f(operands.values.0, operands.values.1);
 
@@ -171,32 +189,43 @@ impl Executable {
         self.pc.advance(4);
         Ok(())
     }
-    
+
     fn execute_input(&mut self) -> Result<(), ExecutionErrorInner> {
         let sloc = self.exec_read(self.pc.param(0))?;
-        let address = Address::try_from_value(sloc)
-            .ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: sloc, position: self.pc })?;
+        let address =
+            Address::try_from_value(sloc).ok_or_else(|| ExecutionErrorInner::InvalidAddress {
+                value: sloc,
+                position: self.pc,
+            })?;
         let in_value = self.input.pop_front().expect("unexpected end of input");
         self.exec_write(address, in_value)?;
         self.pc.advance(2);
         Ok(())
     }
 
-    fn execute_output(&mut self, modes: ParameterModes) -> Result<(), ExecutionErrorInner>  {
+    fn execute_output(&mut self, modes: ParameterModes) -> Result<(), ExecutionErrorInner> {
         let value = self.read_param(modes, 0)?;
         self.output.push(value);
         self.pc.advance(2);
         Ok(())
     }
 
-    fn execute_jump_cond(&mut self, modes: ParameterModes, jump_if_non_zero: bool) -> Result<(), ExecutionErrorInner> {
+    fn execute_jump_cond(
+        &mut self,
+        modes: ParameterModes,
+        jump_if_non_zero: bool,
+    ) -> Result<(), ExecutionErrorInner> {
         let value = self.read_param(modes, 0)?;
 
         if (value != 0) == jump_if_non_zero {
             let target = self.read_param(modes, 1)?;
-            let address = Address::try_from_value(target)
-                .ok_or_else(|| ExecutionErrorInner::InvalidAddress { value: target, position: self.pc })?;
-            
+            let address = Address::try_from_value(target).ok_or_else(|| {
+                ExecutionErrorInner::InvalidAddress {
+                    value: target,
+                    position: self.pc,
+                }
+            })?;
+
             self.pc.jump(address);
         } else {
             self.pc.advance(3);
@@ -205,7 +234,11 @@ impl Executable {
         Ok(())
     }
 
-    fn execute_cmp(&mut self, modes: ParameterModes, f: fn(&isize, &isize) -> bool) -> Result<(), ExecutionErrorInner> {
+    fn execute_cmp(
+        &mut self,
+        modes: ParameterModes,
+        f: fn(&isize, &isize) -> bool,
+    ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
 
         let result = if f(&operands.values.0, &operands.values.1) {
@@ -222,9 +255,9 @@ impl Executable {
 }
 
 /// An error during execution
-/// 
+///
 /// Possible errors include:
-/// 
+///
 /// * Execution of an invalid opcode
 /// * Access to an address beyond the memory limit
 /// * Attempt to interpret a negative value as an address
@@ -239,12 +272,20 @@ enum ExecutionErrorInner {
         source: InvalidOpCode,
         position: ProgramCounter,
     },
-    #[snafu(display("execution error: attempted out of bounds access to {} at {}", address, position))]
+    #[snafu(display(
+        "execution error: attempted out of bounds access to {} at {}",
+        address,
+        position
+    ))]
     OutOfBoundsAccess {
         position: ProgramCounter,
         address: Address,
     },
-    #[snafu(display("execution error: attempted to create an address from a negative value {} at {}", value, position))]
+    #[snafu(display(
+        "execution error: attempted to create an address from a negative value {} at {}",
+        value,
+        position
+    ))]
     InvalidAddress {
         position: ProgramCounter,
         value: isize,
@@ -256,4 +297,3 @@ struct BinOperands {
     values: (isize, isize),
     destination: Address,
 }
-

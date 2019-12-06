@@ -17,7 +17,7 @@ impl Address {
     }
 
     /// Attempts to construct an `Address` from an Intcode value
-    /// 
+    ///
     /// If the value is negative, `None` will be returned.
     pub fn try_from_value(value: isize) -> Option<Self> {
         if value >= 0 {
@@ -32,4 +32,3 @@ impl Address {
         self.0
     }
 }
-
