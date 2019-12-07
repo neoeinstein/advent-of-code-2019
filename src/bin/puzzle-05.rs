@@ -179,11 +179,13 @@ fn main() -> Result<()> {
 
     let input = if cfg!(feature = "part-1") { 1 } else { 5 };
 
-    exe.set_input(vec![input]);
+    exe.single_input(input);
+
+    let drain = exe.drain();
 
     exe.execute()?;
 
-    println!("Result: {:?}", exe.output());
+    println!("Result: {:?}", drain.to_vec());
 
     Ok(())
 }

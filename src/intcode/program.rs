@@ -65,9 +65,10 @@ impl Program {
                 0 => break,
                 c => {
                     debug_assert!(c == buf.len());
-                    let raw = std::str::from_utf8(&buf[..c-1])
+                    let raw = std::str::from_utf8(&buf[..c - 1])
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
-                    let value = raw.trim()
+                    let value = raw
+                        .trim()
                         .parse()
                         .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
                     data.push(value);
@@ -83,8 +84,7 @@ impl Program {
         &self.data
     }
 
-    /// Returns the lowest address for which attempts to access memory will
-    /// result in an out-of-bounds access
+    /// Returns the maximum valid address for the program
     pub fn max_address(&self) -> Address {
         Address::new(self.data.len() - 1)
     }

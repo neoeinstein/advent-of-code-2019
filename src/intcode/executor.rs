@@ -3,7 +3,11 @@ use super::{
     Address, Program, ProgramValue,
 };
 use snafu::{ResultExt, Snafu};
-use std::{collections::VecDeque, convert::TryFrom, fmt, ops};
+use std::{
+    convert::TryFrom,
+    fmt, ops,
+    sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
+};
 use thiserror::Error;
 
 /// A counter which keeps track of the currently executing instruction
@@ -56,8 +60,8 @@ impl ProgramCounter {
 pub struct Executable {
     program: Program,
     pc: ProgramCounter,
-    input: VecDeque<ProgramValue>,
-    output: Vec<ProgramValue>,
+    input: Receiver<ProgramValue>,
+    output: Sender<ProgramValue>,
 }
 
 impl From<Program> for Executable {
@@ -65,22 +69,31 @@ impl From<Program> for Executable {
         Self {
             program,
             pc: ProgramCounter::START,
-            input: VecDeque::new(),
-            output: Vec::new(),
+            input: channel().1,
+            output: channel().0,
         }
     }
 }
 
 impl Executable {
-    /// Clears any existing input and updates it to the passed in value
-    pub fn set_input(&mut self, input: impl IntoIterator<Item = ProgramValue>) {
-        self.input.clear();
-        self.input.extend(input);
+    pub fn single_input(&mut self, value: ProgramValue) {
+        let (tx, rx) = channel();
+        self.input = rx;
+        tx.send(value).unwrap();
     }
 
-    /// Current program outputs
-    pub fn output(&self) -> &[ProgramValue] {
-        &self.output
+    pub fn pipe_outputs_to(&mut self, target: Sender<ProgramValue>) {
+        self.output = target;
+    }
+
+    pub fn pipe_inputs_from(&mut self, source: Receiver<ProgramValue>) {
+        self.input = source;
+    }
+
+    pub fn drain(&mut self) -> OutputDrain {
+        let (tx, rx) = channel();
+        self.pipe_outputs_to(tx);
+        OutputDrain(rx)
     }
 
     /// Access to the program data in the executable's memory
@@ -140,12 +153,18 @@ impl Executable {
     /// Executes the Intcode program until a halt instruction is encountered or
     /// an invalid operation causes termination due to an `ExecutionError`
     pub fn execute(&mut self) -> Result<(), ExecutionError> {
-        while self.pc.address() < self.program.max_address() {
+        let r = self.execute_impl();
+        self.output = channel().0;
+        r
+    }
+
+    fn execute_impl(&mut self) -> Result<(), ExecutionError> {
+        while self.pc.address() <= self.program.max_address() {
             let instruction = Instruction::try_from(self.exec_read(self.pc.address())?)
                 .context(InvalidInstruction { position: self.pc })?;
 
             match instruction.opcode() {
-                OpCode::Halt => break,
+                OpCode::Halt => return Ok(()),
                 OpCode::Add => self.execute_binary_op(instruction.param_modes(), ops::Add::add)?,
                 OpCode::Mul => self.execute_binary_op(instruction.param_modes(), ops::Mul::mul)?,
                 OpCode::Input => self.execute_input()?,
@@ -159,7 +178,10 @@ impl Executable {
             };
         }
 
-        Ok(())
+        Err(ExecutionErrorInner::OutOfBoundsAccess {
+            position: self.pc,
+            address: self.pc.address(),
+        })?
     }
 
     fn get_binary_operands(
@@ -207,7 +229,10 @@ impl Executable {
                 value: sloc,
                 position: self.pc,
             })?;
-        let in_value = self.input.pop_front().expect("unexpected end of input");
+        let in_value = self
+            .input
+            .recv()
+            .context(UnexpectedEndOfInput { position: self.pc })?;
         self.exec_write(address, in_value)?;
         self.pc.advance(2);
         Ok(())
@@ -215,7 +240,9 @@ impl Executable {
 
     fn execute_output(&mut self, modes: ParameterModes) -> Result<(), ExecutionErrorInner> {
         let value = self.read_param(modes, 0)?;
-        self.output.push(value);
+        self.output
+            .send(value)
+            .context(OutputPipeClosed { position: self.pc })?;
         self.pc.advance(2);
         Ok(())
     }
@@ -264,6 +291,22 @@ impl Executable {
     }
 }
 
+pub struct OutputDrain(Receiver<ProgramValue>);
+
+impl OutputDrain {
+    /// Blocks until the executable has halted
+    pub fn to_vec(&self) -> Vec<ProgramValue> {
+        let mut outputs = Vec::new();
+
+        loop {
+            match self.0.recv() {
+                Ok(x) => outputs.push(x),
+                Err(_) => return outputs,
+            }
+        }
+    }
+}
+
 /// An error during execution
 ///
 /// Possible errors include:
@@ -299,6 +342,19 @@ enum ExecutionErrorInner {
     InvalidAddress {
         position: ProgramCounter,
         value: ProgramValue,
+    },
+    #[snafu(display("execution error: unexpected end of input at {}", position))]
+    UnexpectedEndOfInput {
+        source: RecvError,
+        position: ProgramCounter,
+    },
+    #[snafu(display(
+        "execution error: attempted to write on a closed output pipe at {}",
+        position
+    ))]
+    OutputPipeClosed {
+        source: SendError<ProgramValue>,
+        position: ProgramCounter,
     },
 }
 

@@ -94,56 +94,56 @@ mod tests {
 
     #[test]
     fn position_mode_1_is_equal_to_8() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(POS_IS_INPUT_EQUAL_TO_8, input, FALSE)
     }
 
     #[test]
     fn position_mode_8_is_equal_to_8() -> Result<()> {
-        let input = vec![8];
+        let input = 8;
 
         run_program_test(POS_IS_INPUT_EQUAL_TO_8, input, TRUE)
     }
 
     #[test]
     fn position_mode_1_is_less_than_8() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(POS_IS_INPUT_LESS_THAN_8, input, TRUE)
     }
 
     #[test]
     fn position_mode_8_is_less_than_8() -> Result<()> {
-        let input = vec![8];
+        let input = 8;
 
         run_program_test(POS_IS_INPUT_LESS_THAN_8, input, FALSE)
     }
 
     #[test]
     fn immediate_mode_1_is_equal_to_8() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(IMM_IS_INPUT_EQUAL_TO_8, input, FALSE)
     }
 
     #[test]
     fn immediate_mode_8_is_equal_to_8() -> Result<()> {
-        let input = vec![8];
+        let input = 8;
 
         run_program_test(IMM_IS_INPUT_EQUAL_TO_8, input, TRUE)
     }
 
     #[test]
     fn immediate_mode_1_is_less_than_8() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(IMM_IS_INPUT_LESS_THAN_8, input, TRUE)
     }
 
     #[test]
     fn immediate_mode_8_is_less_than_8() -> Result<()> {
-        let input = vec![8];
+        let input = 8;
 
         run_program_test(IMM_IS_INPUT_LESS_THAN_8, input, FALSE)
     }
@@ -153,28 +153,28 @@ mod tests {
 
     #[test]
     fn position_mode_jump_if_0_is_0() -> Result<()> {
-        let input = vec![0];
+        let input = 0;
 
         run_program_test(POS_JUMP_INPUT_WAS_ZERO, input, ZERO)
     }
 
     #[test]
     fn position_mode_jump_if_1_is_0() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(POS_JUMP_INPUT_WAS_ZERO, input, ONE)
     }
 
     #[test]
     fn immediate_mode_jump_if_0_is_0() -> Result<()> {
-        let input = vec![0];
+        let input = 0;
 
         run_program_test(IMM_JUMP_INPUT_WAS_ZERO, input, ZERO)
     }
 
     #[test]
     fn immediate_mode_jump_if_1_is_0() -> Result<()> {
-        let input = vec![1];
+        let input = 1;
 
         run_program_test(IMM_JUMP_INPUT_WAS_ZERO, input, ONE)
     }
@@ -186,80 +186,81 @@ mod tests {
 
     #[test]
     fn compare_neg2_against_8() -> Result<()> {
-        let input = vec![-2];
+        let input = -2;
 
         run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[999])
     }
 
     #[test]
     fn compare_8_against_8() -> Result<()> {
-        let input = vec![8];
+        let input = 8;
 
         run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[1000])
     }
 
     #[test]
     fn compare_99_against_8() -> Result<()> {
-        let input = vec![99];
+        let input = 99;
 
         run_program_test(PUZ_5_PART_2_EXAMPLE, input, &[1001])
     }
 
     #[test]
     fn run_system_1_diagnostics() -> Result<()> {
-        let exe = run_diagnostics(1)?;
+        let outputs = run_diagnostics(1)?;
 
-        assert!(exe.output()[..exe.output().len() - 2]
-            .iter()
-            .copied()
-            .all(|i| i == 0i32));
+        assert!(outputs.iter().rev().skip(1).copied().all(|i| i == 0i32));
 
         Ok(())
     }
 
     #[test]
     fn run_system_5_diagnostics() -> Result<()> {
-        let exe = run_diagnostics(5)?;
+        let outputs = run_diagnostics(5)?;
 
-        assert_eq!(1, exe.output().len());
+        assert_eq!(1, outputs.len());
 
         Ok(())
     }
 
-    fn run_diagnostics(system: ProgramValue) -> Result<Executable> {
+    fn run_diagnostics(system: ProgramValue) -> Result<Vec<ProgramValue>> {
         const PROGRAM: &str = include_str!("../inputs/input-05");
 
         let program = Program::from_str(PROGRAM)?;
 
         let mut exe = Executable::from(program);
 
-        exe.set_input(vec![system]);
+        exe.single_input(system);
+        let drain = exe.drain();
 
         exe.execute()?;
+
+        let outputs = drain.to_vec();
 
         println!(
             "system {} diagnostic code = {}",
             system,
-            exe.output()[exe.output().len() - 1]
+            outputs[outputs.len() - 1]
         );
 
-        Ok(exe)
+        Ok(outputs)
     }
 
     fn run_program_test(
         program_data: &str,
-        input: Vec<ProgramValue>,
+        input: ProgramValue,
         expected: &[ProgramValue],
     ) -> Result<()> {
         let program = Program::from_str(program_data)?;
 
         let mut exe = Executable::from(program);
 
-        exe.set_input(input);
+        exe.single_input(input);
+        let drain = exe.drain();
 
         exe.execute()?;
 
-        assert_eq!(expected, exe.output());
+        assert_eq!(expected, &drain.to_vec()[..]);
 
         Ok(())
     }
