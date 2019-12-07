@@ -52,6 +52,32 @@ impl Program {
         Self::from_str(&raw_data)
     }
 
+    /// Reads and parses a program from an `io::BufRead`er
+    ///
+    /// This function will read in the entire dataset before parsing.
+    pub fn from_buf_reader(input: &mut dyn io::BufRead) -> io::Result<Program> {
+        let mut data = Vec::new();
+        let mut buf = Vec::with_capacity(16);
+        loop {
+            buf.clear();
+
+            match input.read_until(b',', &mut buf)? {
+                0 => break,
+                c => {
+                    debug_assert!(c == buf.len());
+                    let raw = std::str::from_utf8(&buf[..c-1])
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidData, e))?;
+                    let value = raw.trim()
+                        .parse()
+                        .map_err(|e| io::Error::new(io::ErrorKind::InvalidInput, e))?;
+                    data.push(value);
+                }
+            }
+        }
+
+        Ok(Self::from_vec(data))
+    }
+
     /// Provides immutable access to the underlying program data
     pub fn data(&self) -> &[ProgramValue] {
         &self.data

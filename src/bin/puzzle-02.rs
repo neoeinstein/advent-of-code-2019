@@ -186,7 +186,7 @@ fn search_for_noun_and_verb(
 
 fn main() -> Result<()> {
     let program =
-        intcode::Program::from_reader(&mut get_input_reader()).expect("error parsing program");
+        intcode::Program::from_buf_reader(&mut get_input_reader())?;
 
     if cfg!(feature = "part-1") {
         let output = run_with_specific_state(program, 12, 2)?;

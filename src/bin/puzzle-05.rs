@@ -173,7 +173,7 @@ use advent_of_code_2019::{get_input_reader, intcode};
 use anyhow::Result;
 
 fn main() -> Result<()> {
-    let program = intcode::Program::from_reader(&mut get_input_reader())?;
+    let program = intcode::Program::from_buf_reader(&mut get_input_reader())?;
 
     let mut exe = intcode::Executable::from(program);
 
