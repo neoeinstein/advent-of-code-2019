@@ -145,31 +145,28 @@ use advent_of_code_2019::{get_input_reader, intcode};
 use anyhow::{anyhow, Result};
 
 fn run_with_specific_state(
-    program: intcode::Program,
-    noun: intcode::ProgramValue,
-    verb: intcode::ProgramValue,
-) -> Result<intcode::ProgramValue> {
-    let mut p = intcode::Executable::from(program);
-    p.memory_mut().try_write(intcode::Address::new(1), noun);
-    p.memory_mut().try_write(intcode::Address::new(2), verb);
+    mut memory: intcode::Memory,
+    noun: intcode::Word,
+    verb: intcode::Word,
+) -> Result<intcode::Word> {
+    memory.try_write(intcode::Address::new(1), noun);
+    memory.try_write(intcode::Address::new(2), verb);
 
-    p.execute()?;
+    let p = intcode::Executable::from(memory);
 
-    let output = p
-        .memory()
+    let result = p.execute()?;
+
+    let output = result
         .try_read(intcode::Address::new(0))
         .ok_or_else(|| anyhow!("No data in location 0"))?;
 
     Ok(output)
 }
 
-fn search_for_noun_and_verb(
-    program: intcode::Program,
-    target: intcode::ProgramValue,
-) -> Result<()> {
+fn search_for_noun_and_verb(memory: intcode::Memory, target: intcode::Word) -> Result<()> {
     for noun in 0..99 {
         for verb in 0..99 {
-            let output = run_with_specific_state(program.clone(), noun, verb)?;
+            let output = run_with_specific_state(memory.clone(), noun, verb)?;
 
             if output == target {
                 println!("({}, {}) = {}", noun, verb, noun * 100 + verb);
@@ -185,13 +182,13 @@ fn search_for_noun_and_verb(
 }
 
 fn main() -> Result<()> {
-    let program = intcode::Program::from_buf_reader(&mut get_input_reader())?;
+    let memory = intcode::Memory::from_buf_reader(&mut get_input_reader())?;
 
     if cfg!(feature = "part-1") {
-        let output = run_with_specific_state(program, 12, 2)?;
+        let output = run_with_specific_state(memory, 12, 2)?;
         println!("Result: {}", output);
     } else {
-        search_for_noun_and_verb(program, 19_690_720)?;
+        search_for_noun_and_verb(memory, 19_690_720)?;
     }
 
     Ok(())

@@ -1,6 +1,6 @@
 use super::{
     decoder::{Instruction, OpCode, ParameterMode, ParameterModes},
-    Address, Program, ProgramValue,
+    Address, Buffer, Memory, Word,
 };
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -58,16 +58,16 @@ impl ProgramCounter {
 /// output during execution.
 #[derive(Debug)]
 pub struct Executable {
-    program: Program,
+    memory: Memory,
     pc: ProgramCounter,
-    input: Receiver<ProgramValue>,
-    output: Sender<ProgramValue>,
+    input: Receiver<Word>,
+    output: Sender<Word>,
 }
 
-impl From<Program> for Executable {
-    fn from(program: Program) -> Self {
+impl From<Memory> for Executable {
+    fn from(memory: Memory) -> Self {
         Self {
-            program,
+            memory,
             pc: ProgramCounter::START,
             input: channel().1,
             output: channel().0,
@@ -76,17 +76,28 @@ impl From<Program> for Executable {
 }
 
 impl Executable {
-    pub fn single_input(&mut self, value: ProgramValue) {
+    pub fn single_input(&mut self, value: Word) {
         let (tx, rx) = channel();
         self.input = rx;
         tx.send(value).unwrap();
     }
 
-    pub fn pipe_outputs_to(&mut self, target: Sender<ProgramValue>) {
+    pub fn pipe_to(&mut self, target: &mut Executable) -> Sender<Word> {
+        let (tx, rx) = channel();
+        self.output = tx.clone();
+        target.input = rx;
+        tx
+    }
+
+    pub fn buffer_to(&mut self, target: &mut Executable) -> Buffer {
+        Buffer::between(self, target)
+    }
+
+    pub(super) fn pipe_outputs_to(&mut self, target: Sender<Word>) {
         self.output = target;
     }
 
-    pub fn pipe_inputs_from(&mut self, source: Receiver<ProgramValue>) {
+    pub(super) fn pipe_inputs_from(&mut self, source: Receiver<Word>) {
         self.input = source;
     }
 
@@ -96,18 +107,8 @@ impl Executable {
         OutputDrain(rx)
     }
 
-    /// Access to the program data in the executable's memory
-    pub fn memory(&mut self) -> &Program {
-        &self.program
-    }
-
-    /// Mutable access to the program data in the executable's memory
-    pub fn memory_mut(&mut self) -> &mut Program {
-        &mut self.program
-    }
-
-    fn exec_read(&self, address: Address) -> Result<ProgramValue, ExecutionErrorInner> {
-        self.program
+    fn exec_read(&self, address: Address) -> Result<Word, ExecutionErrorInner> {
+        self.memory
             .try_read(address)
             .ok_or_else(|| ExecutionErrorInner::OutOfBoundsAccess {
                 address,
@@ -115,11 +116,7 @@ impl Executable {
             })
     }
 
-    fn read_param(
-        &self,
-        modes: ParameterModes,
-        idx: u8,
-    ) -> Result<ProgramValue, ExecutionErrorInner> {
+    fn read_param(&self, modes: ParameterModes, idx: u8) -> Result<Word, ExecutionErrorInner> {
         let mode = modes.for_param(idx);
         let value = self.exec_read(self.pc.param(idx))?;
 
@@ -137,12 +134,8 @@ impl Executable {
         }
     }
 
-    fn exec_write(
-        &mut self,
-        address: Address,
-        value: ProgramValue,
-    ) -> Result<ProgramValue, ExecutionErrorInner> {
-        self.program.try_write(address, value).ok_or_else(|| {
+    fn exec_write(&mut self, address: Address, value: Word) -> Result<Word, ExecutionErrorInner> {
+        self.memory.try_write(address, value).ok_or_else(|| {
             ExecutionErrorInner::OutOfBoundsAccess {
                 address,
                 position: self.pc,
@@ -150,31 +143,28 @@ impl Executable {
         })
     }
 
-    /// Executes the Intcode program until a halt instruction is encountered or
-    /// an invalid operation causes termination due to an `ExecutionError`
-    pub fn execute(&mut self) -> Result<(), ExecutionError> {
-        let r = self.execute_impl();
-        self.output = channel().0;
-        r
+    pub fn execute_in_thread(self) -> std::thread::JoinHandle<Result<Memory, ExecutionError>> {
+        std::thread::spawn(move || self.execute())
     }
 
-    fn execute_impl(&mut self) -> Result<(), ExecutionError> {
-        while self.pc.address() <= self.program.max_address() {
+    /// Executes the Intcode program in memory until a halt instruction is
+    /// encountered or an invalid operation causes termination due to an
+    /// `ExecutionError`
+    pub fn execute(mut self) -> Result<Memory, ExecutionError> {
+        while self.pc.address() <= self.memory.max_address() {
             let instruction = Instruction::try_from(self.exec_read(self.pc.address())?)
                 .context(InvalidInstruction { position: self.pc })?;
 
             match instruction.opcode() {
-                OpCode::Halt => return Ok(()),
+                OpCode::Halt => return Ok(self.memory),
                 OpCode::Add => self.execute_binary_op(instruction.param_modes(), ops::Add::add)?,
                 OpCode::Mul => self.execute_binary_op(instruction.param_modes(), ops::Mul::mul)?,
                 OpCode::Input => self.execute_input()?,
                 OpCode::Output => self.execute_output(instruction.param_modes())?,
                 OpCode::JumpNonZero => self.execute_jump_cond(instruction.param_modes(), true)?,
                 OpCode::JumpZero => self.execute_jump_cond(instruction.param_modes(), false)?,
-                OpCode::LessThan => {
-                    self.execute_cmp(instruction.param_modes(), ProgramValue::lt)?
-                }
-                OpCode::Equal => self.execute_cmp(instruction.param_modes(), ProgramValue::eq)?,
+                OpCode::LessThan => self.execute_cmp(instruction.param_modes(), Word::lt)?,
+                OpCode::Equal => self.execute_cmp(instruction.param_modes(), Word::eq)?,
             };
         }
 
@@ -188,7 +178,7 @@ impl Executable {
         &self,
         modes: ParameterModes,
     ) -> Result<BinOperands, ExecutionErrorInner> {
-        if self.pc.param(2) > self.program.max_address() {
+        if self.pc.param(2) > self.memory.max_address() {
             return Err(ExecutionErrorInner::OutOfBoundsAccess {
                 position: self.pc,
                 address: self.pc.param(2),
@@ -211,7 +201,7 @@ impl Executable {
     fn execute_binary_op(
         &mut self,
         modes: ParameterModes,
-        f: fn(ProgramValue, ProgramValue) -> ProgramValue,
+        f: fn(Word, Word) -> Word,
     ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
         let result = f(operands.values.0, operands.values.1);
@@ -274,7 +264,7 @@ impl Executable {
     fn execute_cmp(
         &mut self,
         modes: ParameterModes,
-        f: fn(&ProgramValue, &ProgramValue) -> bool,
+        f: fn(&Word, &Word) -> bool,
     ) -> Result<(), ExecutionErrorInner> {
         let operands = self.get_binary_operands(modes)?;
 
@@ -291,11 +281,11 @@ impl Executable {
     }
 }
 
-pub struct OutputDrain(Receiver<ProgramValue>);
+pub struct OutputDrain(Receiver<Word>);
 
 impl OutputDrain {
     /// Blocks until the executable has halted
-    pub fn to_vec(&self) -> Vec<ProgramValue> {
+    pub fn to_vec(&self) -> Vec<Word> {
         let mut outputs = Vec::new();
 
         loop {
@@ -341,7 +331,7 @@ enum ExecutionErrorInner {
     ))]
     InvalidAddress {
         position: ProgramCounter,
-        value: ProgramValue,
+        value: Word,
     },
     #[snafu(display("execution error: unexpected end of input at {}", position))]
     UnexpectedEndOfInput {
@@ -353,13 +343,13 @@ enum ExecutionErrorInner {
         position
     ))]
     OutputPipeClosed {
-        source: SendError<ProgramValue>,
+        source: SendError<Word>,
         position: ProgramCounter,
     },
 }
 
 #[derive(Clone, Copy, Debug)]
 struct BinOperands {
-    values: (ProgramValue, ProgramValue),
+    values: (Word, Word),
     destination: Address,
 }

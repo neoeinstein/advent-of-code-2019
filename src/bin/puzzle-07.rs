@@ -151,80 +151,36 @@
 
 use advent_of_code_2019::{get_input_reader, intcode};
 use anyhow::Result;
-use std::{
-    sync::mpsc::{channel, Receiver, Sender},
-    thread,
-};
-
-struct Buffer {
-    last_output: intcode::ProgramValue,
-    rx: Receiver<intcode::ProgramValue>,
-    tx: Sender<intcode::ProgramValue>,
-}
-
-impl Buffer {
-    fn loop_until_last_value(mut self) -> intcode::ProgramValue {
-        loop {
-            self.last_output = match self.rx.recv() {
-                Ok(v) => v,
-                Err(_) => break,
-            };
-
-            if self.tx.send(self.last_output).is_err() {
-                break;
-            }
-        }
-
-        self.last_output
-    }
-}
 
 fn run_amplifier_sequence(
-    program: &intcode::Program,
-    phase_sequence: [intcode::ProgramValue; 5],
-) -> Result<intcode::ProgramValue> {
-    let mut amp_a = intcode::Executable::from(program.clone());
-    let mut amp_b = intcode::Executable::from(program.clone());
-    let mut amp_c = intcode::Executable::from(program.clone());
-    let mut amp_d = intcode::Executable::from(program.clone());
-    let mut amp_e = intcode::Executable::from(program.clone());
+    memory: &intcode::Memory,
+    phase_sequence: [intcode::Word; 5],
+) -> Result<intcode::Word> {
+    let mut amp_a = intcode::Executable::from(memory.clone());
+    let mut amp_b = intcode::Executable::from(memory.clone());
+    let mut amp_c = intcode::Executable::from(memory.clone());
+    let mut amp_d = intcode::Executable::from(memory.clone());
+    let mut amp_e = intcode::Executable::from(memory.clone());
 
-    let (a_in, buf_out) = channel();
-    let (b_in, a_out) = channel();
-    let (c_in, b_out) = channel();
-    let (d_in, c_out) = channel();
-    let (e_in, d_out) = channel();
-    let (buf_in, e_out) = channel();
+    let buffer = amp_e.buffer_to(&mut amp_a);
+    let a_in = buffer.injector();
+    let b_in = amp_a.pipe_to(&mut amp_b);
+    let c_in = amp_b.pipe_to(&mut amp_c);
+    let d_in = amp_c.pipe_to(&mut amp_d);
+    let e_in = amp_d.pipe_to(&mut amp_e);
 
-    let buffer = Buffer {
-        last_output: 0,
-        rx: e_out,
-        tx: a_in.clone(),
-    };
+    let exec_a = amp_a.execute_in_thread();
+    let exec_b = amp_b.execute_in_thread();
+    let exec_c = amp_c.execute_in_thread();
+    let exec_d = amp_d.execute_in_thread();
+    let exec_e = amp_e.execute_in_thread();
+    let exec_buf = buffer.execute_in_thread();
 
-    amp_a.pipe_inputs_from(buf_out);
-    amp_a.pipe_outputs_to(b_in.clone());
-    amp_b.pipe_inputs_from(a_out);
-    amp_b.pipe_outputs_to(c_in.clone());
-    amp_c.pipe_inputs_from(b_out);
-    amp_c.pipe_outputs_to(d_in.clone());
-    amp_d.pipe_inputs_from(c_out);
-    amp_d.pipe_outputs_to(e_in.clone());
-    amp_e.pipe_inputs_from(d_out);
-    amp_e.pipe_outputs_to(buf_in.clone());
-
-    let exec_a = thread::spawn(move || amp_a.execute());
-    let exec_b = thread::spawn(move || amp_b.execute());
-    let exec_c = thread::spawn(move || amp_c.execute());
-    let exec_d = thread::spawn(move || amp_d.execute());
-    let exec_e = thread::spawn(move || amp_e.execute());
-    let exec_buf = thread::spawn(move || buffer.loop_until_last_value());
-
-    a_in.send(phase_sequence[0])?;
-    b_in.send(phase_sequence[1])?;
-    c_in.send(phase_sequence[2])?;
-    d_in.send(phase_sequence[3])?;
     e_in.send(phase_sequence[4])?;
+    d_in.send(phase_sequence[3])?;
+    c_in.send(phase_sequence[2])?;
+    b_in.send(phase_sequence[1])?;
+    a_in.send(phase_sequence[0])?;
     a_in.send(0)?;
 
     exec_a.join().expect("thread A panicked")?;
@@ -234,16 +190,16 @@ fn run_amplifier_sequence(
     exec_e.join().expect("thread E panicked")?;
     let result = exec_buf.join().expect("thread Buf panicked");
 
-    Ok(result)
+    Ok(result.expect("amplifier sequence did not produce a value"))
 }
 
 fn permute(
-    program: &intcode::Program,
-    mut phase_sequence: [intcode::ProgramValue; 5],
+    memory: &intcode::Memory,
+    mut phase_sequence: [intcode::Word; 5],
     start: usize,
-) -> Result<([intcode::ProgramValue; 5], intcode::ProgramValue)> {
+) -> Result<([intcode::Word; 5], intcode::Word)> {
     if start == 5 {
-        let result = run_amplifier_sequence(program, phase_sequence)?;
+        let result = run_amplifier_sequence(memory, phase_sequence)?;
         println!("With sequence {:?}, gives {}", phase_sequence, result);
         Ok((phase_sequence, result))
     } else {
@@ -251,7 +207,7 @@ fn permute(
         let mut max = 0;
         for i in start..=4 {
             phase_sequence.swap(i, start);
-            let (best_seq, seq_max) = permute(program, phase_sequence, start + 1)?;
+            let (best_seq, seq_max) = permute(memory, phase_sequence, start + 1)?;
             if seq_max > max {
                 best_sequence = best_seq;
                 max = seq_max;
@@ -262,7 +218,7 @@ fn permute(
 }
 
 fn main() -> Result<()> {
-    let program = intcode::Program::from_buf_reader(&mut get_input_reader())?;
+    let memory = intcode::Memory::from_buf_reader(&mut get_input_reader())?;
 
     let phase_sequence = if cfg!(feature = "part-1") {
         [0, 1, 2, 3, 4]
@@ -270,7 +226,7 @@ fn main() -> Result<()> {
         [5, 6, 7, 8, 9]
     };
 
-    let (best_sequence, max) = permute(&program, phase_sequence, 0)?;
+    let (best_sequence, max) = permute(&memory, phase_sequence, 0)?;
 
     println!("Best sequence: {:?}, end value = {}", best_sequence, max);
 
@@ -287,12 +243,12 @@ mod tests {
     #[test]
     fn part_1_example_1() -> Result<()> {
         const PROGRAM: &str = "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0";
-        const PHASES: &[intcode::ProgramValue; 5] = &[4, 3, 2, 1, 0];
+        const PHASES: &[intcode::Word; 5] = &[4, 3, 2, 1, 0];
 
-        let program = intcode::Program::from_str(PROGRAM)?;
+        let memory = intcode::Memory::from_str(PROGRAM)?;
 
-        let actual = run_amplifier_sequence(&program, *PHASES)?;
-        const EXPECTED: intcode::ProgramValue = 43210;
+        let actual = run_amplifier_sequence(&memory, *PHASES)?;
+        const EXPECTED: intcode::Word = 43210;
 
         assert_eq!(EXPECTED, actual);
 
@@ -303,12 +259,12 @@ mod tests {
     fn part_1_example_2() -> Result<()> {
         const PROGRAM: &str = "3,23,3,24,1002,24,10,24,1002,23,-1,23,\
                                101,5,23,23,1,24,23,23,4,23,99,0,0";
-        const PHASES: &[intcode::ProgramValue; 5] = &[0, 1, 2, 3, 4];
+        const PHASES: &[intcode::Word; 5] = &[0, 1, 2, 3, 4];
 
-        let program = intcode::Program::from_str(PROGRAM)?;
+        let memory = intcode::Memory::from_str(PROGRAM)?;
 
-        let actual = run_amplifier_sequence(&program, *PHASES)?;
-        const EXPECTED: intcode::ProgramValue = 54321;
+        let actual = run_amplifier_sequence(&memory, *PHASES)?;
+        const EXPECTED: intcode::Word = 54321;
 
         assert_eq!(EXPECTED, actual);
 
@@ -319,12 +275,12 @@ mod tests {
     fn part_1_example_3() -> Result<()> {
         const PROGRAM: &str = "3,31,3,32,1002,32,10,32,1001,31,-2,31,1007,31,0,33,\
                                1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0";
-        const PHASES: &[intcode::ProgramValue; 5] = &[1, 0, 4, 3, 2];
+        const PHASES: &[intcode::Word; 5] = &[1, 0, 4, 3, 2];
 
-        let program = intcode::Program::from_str(PROGRAM)?;
+        let memory = intcode::Memory::from_str(PROGRAM)?;
 
-        let actual = run_amplifier_sequence(&program, *PHASES)?;
-        const EXPECTED: intcode::ProgramValue = 65210;
+        let actual = run_amplifier_sequence(&memory, *PHASES)?;
+        const EXPECTED: intcode::Word = 65210;
 
         assert_eq!(EXPECTED, actual);
 
@@ -335,12 +291,12 @@ mod tests {
     fn part_2_example_1() -> Result<()> {
         const PROGRAM: &str = "3,26,1001,26,-4,26,3,27,1002,27,2,27,1,27,26,\
                                27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5";
-        const PHASES: [intcode::ProgramValue; 5] = [9, 8, 7, 6, 5];
+        const PHASES: [intcode::Word; 5] = [9, 8, 7, 6, 5];
 
-        let program = intcode::Program::from_str(PROGRAM)?;
+        let memory = intcode::Memory::from_str(PROGRAM)?;
 
-        let actual = run_amplifier_sequence(&program, PHASES)?;
-        const EXPECTED: intcode::ProgramValue = 139629729;
+        let actual = run_amplifier_sequence(&memory, PHASES)?;
+        const EXPECTED: intcode::Word = 139629729;
 
         assert_eq!(EXPECTED, actual);
 
@@ -352,12 +308,12 @@ mod tests {
         const PROGRAM: &str = "3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,\
                                -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,\
                                53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10";
-        const PHASES: [intcode::ProgramValue; 5] = [9, 7, 8, 5, 6];
+        const PHASES: [intcode::Word; 5] = [9, 7, 8, 5, 6];
 
-        let program = intcode::Program::from_str(PROGRAM)?;
+        let memory = intcode::Memory::from_str(PROGRAM)?;
 
-        let actual = run_amplifier_sequence(&program, PHASES)?;
-        const EXPECTED: intcode::ProgramValue = 18216;
+        let actual = run_amplifier_sequence(&memory, PHASES)?;
+        const EXPECTED: intcode::Word = 18216;
 
         assert_eq!(EXPECTED, actual);
 

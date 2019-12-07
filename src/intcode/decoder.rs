@@ -1,4 +1,4 @@
-use super::ProgramValue;
+use super::Word;
 use snafu::Snafu;
 use std::convert::TryFrom;
 
@@ -23,9 +23,9 @@ impl Instruction {
     }
 }
 
-impl TryFrom<ProgramValue> for Instruction {
+impl TryFrom<Word> for Instruction {
     type Error = InvalidInstruction;
-    fn try_from(raw: ProgramValue) -> Result<Self, Self::Error> {
+    fn try_from(raw: Word) -> Result<Self, Self::Error> {
         if raw < 0 {
             return Err(InvalidInstruction::NegativeValue { opcode: raw });
         }
@@ -142,7 +142,7 @@ impl ParameterMode {
 #[derive(Snafu, Debug)]
 pub enum InvalidInstruction {
     #[snafu(display("opcode cannot be negative (opcode = {})", opcode))]
-    NegativeValue { opcode: ProgramValue },
+    NegativeValue { opcode: Word },
     #[snafu(display("unknown opcode (opcode = {})", opcode))]
     UnknownOpcode { opcode: usize },
     #[snafu(display(

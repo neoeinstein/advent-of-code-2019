@@ -3,33 +3,35 @@
 //! ## Example
 //!
 //! ```
-//! use advent_of_code_2019::intcode::{Address, Executable, Program};
+//! use advent_of_code_2019::intcode::{Address, Executable, Memory};
 //!
 //! const PROGRAM_DATA: &str = "1,1,1,4,99,5,6,0,99";
-//! let program = Program::from_str(PROGRAM_DATA).expect("valid program");
+//! let memory = Memory::from_str(PROGRAM_DATA).expect("valid data");
 //!
-//! let mut exe = Executable::from(program);
+//! let mut exe = Executable::from(memory);
 //!
-//! exe.execute().expect("successful execution");
+//! let result = exe.execute().expect("successful execution");
 //!
-//! assert_eq!(Some(30), exe.memory().try_read(Address::new(0)));
+//! assert_eq!(Some(30), result.try_read(Address::new(0)));
 //! ```
 
 mod address;
+mod buffer;
 mod decoder;
 mod executor;
-mod program;
+mod memory;
 
 pub use address::Address;
+pub use buffer::Buffer;
 pub use executor::{Executable, ExecutionError};
-pub use program::Program;
+pub use memory::Memory;
 
-/// The quantum of data in program memory
-pub type ProgramValue = i32;
+/// The quantum of data in Intcode memory
+pub type Word = i32;
 
 #[cfg(test)]
 mod tests {
-    use super::{Executable, Program, ProgramValue};
+    use super::{Executable, Memory, Word};
     use anyhow::Result;
     use pretty_assertions::assert_eq;
 
@@ -70,14 +72,14 @@ mod tests {
     }
 
     fn verify_final_state_test(initial: &str, expected: &str) -> Result<()> {
-        let program = Program::from_str(initial)?;
-        let expected = Program::from_str(expected)?;
+        let memory = Memory::from_str(initial)?;
+        let expected = Memory::from_str(expected)?;
 
-        let mut exe = Executable::from(program);
+        let exe = Executable::from(memory);
 
-        exe.execute()?;
+        let result = exe.execute()?;
 
-        assert_eq!(&expected, exe.memory());
+        assert_eq!(expected, result);
 
         Ok(())
     }
@@ -87,10 +89,10 @@ mod tests {
     const IMM_IS_INPUT_EQUAL_TO_8: &str = "3,3,1108,-1,8,3,4,3,99";
     const IMM_IS_INPUT_LESS_THAN_8: &str = "3,3,1107,-1,8,3,4,3,99";
 
-    const TRUE: &[ProgramValue] = &[1];
-    const ONE: &[ProgramValue] = &[1];
-    const FALSE: &[ProgramValue] = &[0];
-    const ZERO: &[ProgramValue] = &[0];
+    const TRUE: &[Word] = &[1];
+    const ONE: &[Word] = &[1];
+    const FALSE: &[Word] = &[0];
+    const ZERO: &[Word] = &[0];
 
     #[test]
     fn position_mode_1_is_equal_to_8() -> Result<()> {
@@ -223,12 +225,12 @@ mod tests {
         Ok(())
     }
 
-    fn run_diagnostics(system: ProgramValue) -> Result<Vec<ProgramValue>> {
+    fn run_diagnostics(system: Word) -> Result<Vec<Word>> {
         const PROGRAM: &str = include_str!("../inputs/input-05");
 
-        let program = Program::from_str(PROGRAM)?;
+        let memory = Memory::from_str(PROGRAM)?;
 
-        let mut exe = Executable::from(program);
+        let mut exe = Executable::from(memory);
 
         exe.single_input(system);
         let drain = exe.drain();
@@ -246,14 +248,10 @@ mod tests {
         Ok(outputs)
     }
 
-    fn run_program_test(
-        program_data: &str,
-        input: ProgramValue,
-        expected: &[ProgramValue],
-    ) -> Result<()> {
-        let program = Program::from_str(program_data)?;
+    fn run_program_test(program_data: &str, input: Word, expected: &[Word]) -> Result<()> {
+        let memory = Memory::from_str(program_data)?;
 
-        let mut exe = Executable::from(program);
+        let mut exe = Executable::from(memory);
 
         exe.single_input(input);
         let drain = exe.drain();
