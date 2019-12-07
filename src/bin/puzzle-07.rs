@@ -149,7 +149,7 @@
 //! Try every combination of the new phase settings on the amplifier feedback
 //! loop. What is the highest signal that can be sent to the thrusters?
 
-use advent_of_code_2019::{get_input_reader, intcode};
+use advent_of_code_2019::get_input_reader;
 use anyhow::Result;
 
 fn run_amplifier_sequence(
@@ -236,7 +236,6 @@ fn main() -> Result<()> {
 #[cfg(test)]
 mod tests {
     use super::run_amplifier_sequence;
-    use advent_of_code_2019::intcode;
     use anyhow::Result;
     use pretty_assertions::assert_eq;
 

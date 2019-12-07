@@ -117,8 +117,7 @@ impl Memory {
 
 #[cfg(test)]
 mod tests {
-    use super::Memory;
-    use crate::intcode::Word;
+    use crate::{Memory, Word};
     use anyhow::Result;
     use pretty_assertions::assert_eq;
 

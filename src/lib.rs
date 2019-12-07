@@ -1,7 +1,5 @@
 use std::{env, fs, io, path::PathBuf};
 
-pub mod intcode;
-
 fn get_input_filename() -> Option<PathBuf> {
     let in_file = env::args().nth(1)?;
     if in_file == "-" {

@@ -141,7 +141,7 @@
 //! 19690720. What is 100 * noun + verb? (For example, if noun=12 and verb=2,
 //! the answer would be 1202.)
 
-use advent_of_code_2019::{get_input_reader, intcode};
+use advent_of_code_2019::get_input_reader;
 use anyhow::{anyhow, Result};
 
 fn run_with_specific_state(

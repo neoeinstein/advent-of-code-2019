@@ -3,7 +3,7 @@
 //! ## Example
 //!
 //! ```
-//! use advent_of_code_2019::intcode::{Address, Executable, Memory};
+//! use intcode::{Address, Executable, Memory};
 //!
 //! const PROGRAM_DATA: &str = "1,1,1,4,99,5,6,0,99";
 //! let memory = Memory::from_str(PROGRAM_DATA).expect("valid data");
@@ -226,7 +226,7 @@ mod tests {
     }
 
     fn run_diagnostics(system: Word) -> Result<Vec<Word>> {
-        const PROGRAM: &str = include_str!("../inputs/input-05");
+        const PROGRAM: &str = include_str!("../../inputs/input-05");
 
         let memory = Memory::from_str(PROGRAM)?;
 

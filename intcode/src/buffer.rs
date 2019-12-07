@@ -39,9 +39,8 @@ impl Buffer {
 
             self.last_output = Some(value);
 
-            if self.tx.send(value).is_err() {
-                break;
-            }
+            // Ignore if the listener has stopped listening
+            let _ = self.tx.send(value);
         }
 
         self.last_output

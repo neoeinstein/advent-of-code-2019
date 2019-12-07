@@ -169,7 +169,7 @@
 //!
 //! What is the diagnostic code for system ID 5?
 
-use advent_of_code_2019::{get_input_reader, intcode};
+use advent_of_code_2019::get_input_reader;
 use anyhow::Result;
 
 fn main() -> Result<()> {
