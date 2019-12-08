@@ -1,11 +1,12 @@
-use super::error;
-use super::execute::{self, ExecutionError, ExecutionErrorInner};
-use super::ops::{Instruction, OpCode, ParameterMode};
-use super::{Address, Memory, ProgramCounter, Word};
+use super::{
+    error,
+    execute::{self, ExecutionError, ExecutionErrorInner},
+    ops::{Instruction, OpCode, ParameterMode},
+    Address, Memory, ProgramCounter, Word,
+};
 use arrayvec::ArrayVec;
 use snafu::ResultExt;
-use std::convert::TryFrom;
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 
 macro_rules! decode_impl {
     ($pc:expr, $modes:expr, $memory:expr) => {{

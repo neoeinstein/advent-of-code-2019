@@ -1,6 +1,5 @@
 use super::{error, Word};
-use std::convert::TryFrom;
-use std::fmt;
+use std::{convert::TryFrom, fmt};
 
 /// An address into the memory of an Intcode program
 #[derive(Clone, Copy, Debug, Ord, PartialOrd, Eq, PartialEq)]

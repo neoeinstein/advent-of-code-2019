@@ -8,8 +8,10 @@ use snafu::{ResultExt, Snafu};
 use std::{
     convert::TryFrom,
     fmt, ops,
-    sync::atomic::{AtomicUsize, Ordering},
-    sync::mpsc::{channel, Receiver, RecvError, SendError, Sender},
+    sync::{
+        atomic::{AtomicUsize, Ordering},
+        mpsc::{channel, Receiver, RecvError, SendError, Sender},
+    },
 };
 use thiserror::Error;
 
