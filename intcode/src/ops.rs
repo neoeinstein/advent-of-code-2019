@@ -1,4 +1,5 @@
 use super::Word;
+use arrayvec::{Array, ArrayVec};
 use snafu::Snafu;
 use std::convert::TryFrom;
 
@@ -91,9 +92,13 @@ impl TryFrom<usize> for OpCode {
 pub struct ParameterModes(usize);
 
 impl ParameterModes {
-    pub fn for_param(self, idx: u8) -> ParameterMode {
-        ParameterMode::from_value((self.0 / (10usize.pow(idx as u32))) % 10)
-            .expect("invalid parameter mode in pre-validated context")
+    pub fn fill_params<A: Array<Item = ParameterMode>>(mut self, buf: &mut ArrayVec<A>) {
+        while !buf.is_full() {
+            let mode = ParameterMode::from_value(self.0 % 10)
+                .expect("invalid parameter mode in pre-validated context");
+            buf.push(mode);
+            self.0 = self.0 / 10;
+        }
     }
 }
 

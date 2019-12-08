@@ -1,4 +1,4 @@
-use super::{Address, Word};
+use super::{error, Address, Word};
 use std::{io, mem};
 
 /// An Intcode memory
@@ -101,17 +101,27 @@ impl Memory {
     /// Attempts to read a value from a given address
     ///
     /// Returns `None` if the address is outside the bounds of legal addresses.
-    pub fn try_read(&self, address: Address) -> Option<Word> {
-        self.data.get(address.value()).copied()
+    pub fn try_read(&self, address: Address) -> Result<Word, error::OutOfBoundsAccess> {
+        self.data
+            .get(address.value())
+            .copied()
+            .ok_or(error::OutOfBoundsAccess::new(address))
     }
 
     /// Attempts to write a value to the given address
     ///
     /// Returns the prior value at that address, or `None` if the address was
     /// outside the bounds of legal addresses.
-    pub fn try_write(&mut self, address: Address, value: Word) -> Option<Word> {
-        let sloc = self.data.get_mut(address.value())?;
-        Some(mem::replace(sloc, value))
+    pub fn try_write(
+        &mut self,
+        address: Address,
+        value: Word,
+    ) -> Result<Word, error::OutOfBoundsAccess> {
+        let sloc = self
+            .data
+            .get_mut(address.value())
+            .ok_or(error::OutOfBoundsAccess::new(address))?;
+        Ok(mem::replace(sloc, value))
     }
 }
 

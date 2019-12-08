@@ -12,22 +12,30 @@
 //!
 //! let result = exe.execute().expect("successful execution");
 //!
-//! assert_eq!(Some(30), result.try_read(Address::new(0)));
+//! assert_eq!(Ok(30), result.try_read(Address::new(0)));
 //! ```
 
 mod address;
 mod buffer;
-mod decoder;
-mod executor;
+mod decode;
+mod error;
+mod execute;
 mod memory;
+mod ops;
 
 pub use address::Address;
 pub use buffer::Buffer;
-pub use executor::{Executable, ExecutionError};
+use execute::ProgramCounter;
+pub use execute::{Executable, ExecutionError};
 pub use memory::Memory;
 
 /// The quantum of data in Intcode memory
 pub type Word = i32;
+
+#[cfg(test)]
+fn init_logging() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}
 
 #[cfg(test)]
 mod tests {
@@ -72,6 +80,7 @@ mod tests {
     }
 
     fn verify_final_state_test(initial: &str, expected: &str) -> Result<()> {
+        crate::init_logging();
         let memory = Memory::from_str(initial)?;
         let expected = Memory::from_str(expected)?;
 
@@ -226,6 +235,7 @@ mod tests {
     }
 
     fn run_diagnostics(system: Word) -> Result<Vec<Word>> {
+        crate::init_logging();
         const PROGRAM: &str = include_str!("../../inputs/input-05");
 
         let memory = Memory::from_str(PROGRAM)?;
@@ -249,6 +259,7 @@ mod tests {
     }
 
     fn run_program_test(program_data: &str, input: Word, expected: &[Word]) -> Result<()> {
+        crate::init_logging();
         let memory = Memory::from_str(program_data)?;
 
         let mut exe = Executable::from(memory);

@@ -149,16 +149,14 @@ fn run_with_specific_state(
     noun: intcode::Word,
     verb: intcode::Word,
 ) -> Result<intcode::Word> {
-    memory.try_write(intcode::Address::new(1), noun);
-    memory.try_write(intcode::Address::new(2), verb);
+    memory.try_write(intcode::Address::new(1), noun)?;
+    memory.try_write(intcode::Address::new(2), verb)?;
 
     let p = intcode::Executable::from(memory);
 
     let result = p.execute()?;
 
-    let output = result
-        .try_read(intcode::Address::new(0))
-        .ok_or_else(|| anyhow!("No data in location 0"))?;
+    let output = result.try_read(intcode::Address::new(0))?;
 
     Ok(output)
 }

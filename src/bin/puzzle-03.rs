@@ -16,8 +16,8 @@
 //! where they both start, this point does not count, nor does a wire count as
 //! crossing with itself.
 //!
-//! For example, if the first wire's path is R8,U5,L5,D3, then starting from the
-//! central port (o), it goes right 8, up 5, left 5, and finally down 3:
+//! For example, if the first wire's path is `R8,U5,L5,D3`, then starting from
+//! the central port (o), it goes right 8, up 5, left 5, and finally down 3:
 //!
 //! ```text
 //! ...........
@@ -32,8 +32,8 @@
 //! ...........
 //! ```
 //!
-//! Then, if the second wire's path is U7,R6,D4,L4, it goes up 7, right 6, down
-//! 4, and left 4:
+//! Then, if the second wire's path is `U7,R6,D4,L4`, it goes up 7, right 6,
+//! down 4, and left 4:
 //!
 //! ```text
 //! ...........

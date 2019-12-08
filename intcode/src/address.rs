@@ -1,4 +1,5 @@
-use super::Word;
+use super::{error, Word};
+use std::convert::TryFrom;
 use std::fmt;
 
 /// An address into the memory of an Intcode program
@@ -7,7 +8,7 @@ pub struct Address(usize);
 
 impl fmt::Display for Address {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "address {}", self.0)
+        self.0.fmt(f)
     }
 }
 
@@ -17,19 +18,19 @@ impl Address {
         Self(addr)
     }
 
-    /// Attempts to construct an `Address` from an Intcode value
-    ///
-    /// If the value is negative, `None` will be returned.
-    pub fn try_from_value(value: Word) -> Option<Self> {
-        if value >= 0 {
-            Some(Self::new(value as usize))
-        } else {
-            None
-        }
-    }
-
     /// Extracts the raw address offset
     pub const fn value(self) -> usize {
         self.0
+    }
+}
+
+impl TryFrom<Word> for Address {
+    type Error = error::InvalidAddress;
+    fn try_from(w: Word) -> Result<Self, error::InvalidAddress> {
+        if w >= 0 {
+            Ok(Self::new(w as usize))
+        } else {
+            Err(error::InvalidAddress::new(w))
+        }
     }
 }

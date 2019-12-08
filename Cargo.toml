@@ -9,13 +9,10 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 intcode = { path = "./intcode" }
-lazy_static = "1"
-num-traits = "0.2"
-thiserror = "1"
-snafu = "0.6"
 
 [dev-dependencies]
 criterion = "0.3"
+env_logger = "0.7"
 pretty_assertions = "0.6"
 
 [features]
