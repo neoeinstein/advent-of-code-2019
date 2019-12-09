@@ -2,7 +2,7 @@ use super::{
     decode::{decode, BinaryOperands, Decoded, InputOperands, JumpIfOperands, OutputOperands},
     error,
     ops::Instruction,
-    Address, Buffer, Memory, Word,
+    Address, Buffer, Memory, Relative, Word,
 };
 use snafu::{ResultExt, Snafu};
 use std::{
@@ -72,6 +72,7 @@ pub struct Executable {
     id: usize,
     memory: Memory,
     pc: ProgramCounter,
+    rel: Address,
     input: Receiver<Word>,
     output: Sender<Word>,
 }
@@ -82,6 +83,7 @@ impl From<Memory> for Executable {
             id: NEXT_EXECUTABLE_ID.fetch_add(1, Ordering::AcqRel),
             memory,
             pc: ProgramCounter::START,
+            rel: Address::new(0),
             input: channel().1,
             output: channel().0,
         }
@@ -165,6 +167,7 @@ impl Executable {
             Decoded::JumpZero(params) => self.execute_jump_if(params, false),
             Decoded::LessThan(params) => self.execute_cmp(params, Word::lt),
             Decoded::Equal(params) => self.execute_cmp(params, Word::eq),
+            Decoded::AddRel(params) => self.execute_add_rel(params),
             Decoded::Halt => {
                 log::debug!("{}@{}: halt", self.id, self.pc);
                 return Ok(false);
@@ -180,11 +183,11 @@ impl Executable {
     ) -> Result<(), ExecutionErrorInner> {
         let left = operands
             .left
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
         let right = operands
             .right
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
         let result = f(left, right);
 
@@ -212,7 +215,7 @@ impl Executable {
     fn execute_output(&mut self, operands: OutputOperands) -> Result<(), ExecutionErrorInner> {
         let value = operands
             .source
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
 
         log::debug!("{}@{}: => {}", self.id, self.pc, value);
@@ -224,6 +227,23 @@ impl Executable {
         Ok(())
     }
 
+    fn execute_add_rel(&mut self, operands: OutputOperands) -> Result<(), ExecutionErrorInner> {
+        let value = operands
+            .source
+            .load(self.rel, &self.memory)
+            .context(OutOfBoundsAccess { pc: self.pc })?;
+
+        let next = (self.rel + Relative::from(value)).context(InvalidAddress {
+            pc: self.pc
+        })?;
+
+        log::debug!("{}@{}: {} {} => {}", self.id, self.pc, self.rel, value, next);
+
+        self.rel = next;
+        self.pc.advance(2);
+        Ok(())
+    }
+
     fn execute_jump_if(
         &mut self,
         operands: JumpIfOperands,
@@ -231,11 +251,11 @@ impl Executable {
     ) -> Result<(), ExecutionErrorInner> {
         let value = operands
             .value
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
         let target_raw = operands
             .jump_target
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
         let target = Address::try_from(target_raw).context(InvalidAddress { pc: self.pc })?;
 
@@ -259,11 +279,11 @@ impl Executable {
     ) -> Result<(), ExecutionErrorInner> {
         let left = operands
             .left
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
         let right = operands
             .right
-            .load(&self.memory)
+            .load(self.rel, &self.memory)
             .context(OutOfBoundsAccess { pc: self.pc })?;
 
         let result = if f(&left, &right) { 1 } else { 0 };

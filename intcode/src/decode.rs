@@ -2,7 +2,7 @@ use super::{
     error,
     execute::{self, ExecutionError, ExecutionErrorInner},
     ops::{Instruction, OpCode, ParameterMode},
-    Address, Memory, ProgramCounter, Word,
+    Address, Memory, ProgramCounter, Relative, Word,
 };
 use arrayvec::ArrayVec;
 use snafu::ResultExt;
@@ -152,7 +152,7 @@ impl Decodable for InputOperands {
 
 impl fmt::Display for InputOperands {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "=> ({})", self.target)
+        write!(f, "({})", self.target)
     }
 }
 
@@ -177,7 +177,7 @@ impl Decodable for OutputOperands {
 
 impl fmt::Display for OutputOperands {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} =>", self.source)
+        self.source.fmt(f)
     }
 }
 
@@ -221,6 +221,7 @@ pub enum Decoded {
     JumpZero(JumpIfOperands),
     LessThan(BinaryOperands),
     Equal(BinaryOperands),
+    AddRel(OutputOperands),
 }
 
 impl fmt::Display for Decoded {
@@ -229,12 +230,13 @@ impl fmt::Display for Decoded {
             Decoded::Halt => "halt".fmt(f),
             Decoded::Add(ops) => write!(f, "add {}", ops),
             Decoded::Mul(ops) => write!(f, "mul {}", ops),
-            Decoded::Input(ops) => write!(f, "read {}", ops),
-            Decoded::Output(ops) => write!(f, "write {}", ops),
+            Decoded::Input(ops) => write!(f, "read => {}", ops),
+            Decoded::Output(ops) => write!(f, "write {} =>", ops),
             Decoded::JumpNonZero(ops) => write!(f, "jnz {}", ops),
             Decoded::JumpZero(ops) => write!(f, "jz {}", ops),
             Decoded::LessThan(ops) => write!(f, "lt {}", ops),
             Decoded::Equal(ops) => write!(f, "eq {}", ops),
+            Decoded::AddRel(ops) => write!(f, "add rel, {} => rel", ops),
         }
     }
 }
@@ -254,6 +256,7 @@ pub fn decode(
         OpCode::JumpZero => Decoded::JumpZero(Decodable::decode(i, pc, memory)?),
         OpCode::LessThan => Decoded::LessThan(Decodable::decode(i, pc, memory)?),
         OpCode::Equal => Decoded::Equal(Decodable::decode(i, pc, memory)?),
+        OpCode::AddRel => Decoded::AddRel(Decodable::decode(i, pc, memory)?),
     };
 
     log::debug!("@{}: {}", pc, decoded);
@@ -264,20 +267,23 @@ pub fn decode(
 pub enum Parameter {
     Position(Address),
     Immediate(Word),
+    Relative(Relative),
 }
 
 impl Parameter {
     fn interpret(mode: ParameterMode, value: Word) -> Result<Self, error::InvalidAddress> {
         match mode {
-            ParameterMode::Immediate => Ok(Parameter::Immediate(value)),
             ParameterMode::Position => Ok(Parameter::Position(Address::try_from(value)?)),
+            ParameterMode::Immediate => Ok(Parameter::Immediate(value)),
+            ParameterMode::Relative => Ok(Parameter::Relative(Relative::from(value))),
         }
     }
 
-    pub fn load(self, memory: &Memory) -> Result<Word, error::OutOfBoundsAccess> {
+    pub fn load(self, relative_base: Address, memory: &Memory) -> Result<Word, error::OutOfBoundsAccess> {
         match self {
             Parameter::Position(addr) => memory.try_read(addr),
             Parameter::Immediate(value) => Ok(value),
+            Parameter::Relative(offset) => memory.try_read((relative_base + offset).expect("valid address"))
         }
     }
 }
@@ -287,6 +293,7 @@ impl fmt::Display for Parameter {
         match self {
             Parameter::Position(addr) => write!(f, "({})", addr),
             Parameter::Immediate(value) => write!(f, "${}", value),
+            Parameter::Relative(offset) => write!(f, "(rel{})", offset),
         }
     }
 }

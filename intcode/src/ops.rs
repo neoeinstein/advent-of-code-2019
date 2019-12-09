@@ -65,6 +65,8 @@ pub enum OpCode {
     /// (`08`) If param 0 is equal to param 1, stores `1` in param 2, otherwise
     /// stores `0`
     Equal,
+    /// (`09`) Adjusts the relative base register by the value in param 0
+    AddRel,
 }
 
 impl TryFrom<usize> for OpCode {
@@ -80,6 +82,7 @@ impl TryFrom<usize> for OpCode {
             6 => OpCode::JumpZero,
             7 => OpCode::LessThan,
             8 => OpCode::Equal,
+            9 => OpCode::AddRel,
             99 => OpCode::Halt,
             _ => return Err(InvalidInstruction::UnknownOpcode { opcode }),
         };
@@ -126,6 +129,8 @@ pub enum ParameterMode {
     Position,
     /// The parameter is the value to be used for the operation
     Immediate,
+    /// The parameter is at an address relative to the current relative address base
+    Relative,
 }
 
 impl Default for ParameterMode {
@@ -139,6 +144,7 @@ impl ParameterMode {
         match mode {
             0 => Some(ParameterMode::Position),
             1 => Some(ParameterMode::Immediate),
+            2 => Some(ParameterMode::Relative),
             _ => None,
         }
     }

@@ -23,6 +23,7 @@ mod execute;
 mod memory;
 mod ops;
 
+use address::Relative;
 pub use address::Address;
 pub use buffer::Buffer;
 use execute::ProgramCounter;
@@ -30,7 +31,7 @@ pub use execute::{Executable, ExecutionError};
 pub use memory::Memory;
 
 /// The quantum of data in Intcode memory
-pub type Word = i32;
+pub type Word = i64;
 
 #[cfg(test)]
 fn init_logging() {
@@ -220,7 +221,7 @@ mod tests {
     fn run_system_1_diagnostics() -> Result<()> {
         let outputs = run_diagnostics(1)?;
 
-        assert!(outputs.iter().rev().skip(1).copied().all(|i| i == 0i32));
+        assert!(outputs.iter().rev().skip(1).copied().all(|i| i == 0));
 
         Ok(())
     }
@@ -272,5 +273,26 @@ mod tests {
         assert_eq!(expected, &drain.to_vec()[..]);
 
         Ok(())
+    }
+
+    #[test]
+    fn can_handle_large_values() -> Result<()> {
+        const LARGE_NUMBERS: &str = "104,1125899906842624,99";
+        run_program_test(LARGE_NUMBERS, 0, &[1125899906842624])
+    }
+
+
+    #[test]
+    fn produce_16_digit_num() -> Result<()> {
+        const PRODUCE_NUM: &str = "1102,34915192,34915192,7,4,7,99,0";
+        const EXPECTED: &[Word] = &[1219070632396864];
+        run_program_test(PRODUCE_NUM, 0, EXPECTED)
+    }
+
+    #[test]
+    fn quine() -> Result<()> {
+        const QUINE: &str = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
+        const EXPECTED: &[Word] = &[109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99];
+        run_program_test(QUINE, 0, EXPECTED)
     }
 }

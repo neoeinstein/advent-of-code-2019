@@ -98,13 +98,23 @@ impl Memory {
         Address::new(self.data.len() - 1)
     }
 
+    pub fn set_memory_limit(&mut self, capacity: usize) {
+        self.data.resize_with(capacity, || 0);
+    }
+
     /// Attempts to read a value from a given address
     ///
     /// Returns `None` if the address is outside the bounds of legal addresses.
     pub fn try_read(&self, address: Address) -> Result<Word, error::OutOfBoundsAccess> {
+        if address > self.max_address() {
+            log::debug!("reading from zeroed memory address {}", address);
+            return Ok(0)
+        }
+
         self.data
             .get(address.value())
             .copied()
+            .or_else(|| Some(0))
             .ok_or(error::OutOfBoundsAccess::new(address))
     }
 
@@ -117,6 +127,11 @@ impl Memory {
         address: Address,
         value: Word,
     ) -> Result<Word, error::OutOfBoundsAccess> {
+        if address > self.max_address() {
+            log::debug!("increasing memory to allow access to address {}", address);
+            self.set_memory_limit(address.value() + 1);
+        }
+
         let sloc = self
             .data
             .get_mut(address.value())
