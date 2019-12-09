@@ -8,15 +8,15 @@ edition = "2018"
 
 [dependencies]
 anyhow = "1"
+env_logger = "0.7"
 intcode = { path = "./intcode" }
 
 [dev-dependencies]
 criterion = "0.3"
-env_logger = "0.7"
 pretty_assertions = "0.6"
 
 [[bench]]
-name = "day07"
+name = "bench"
 harness = false
 
 [features]

@@ -12,7 +12,7 @@
 //!
 //! let result = exe.execute().expect("successful execution");
 //!
-//! assert_eq!(Ok(30), result.try_read(Address::new(0)));
+//! assert_eq!(30, result.read_or_default(Address::new(0)));
 //! ```
 
 mod address;
@@ -23,8 +23,8 @@ mod execute;
 mod memory;
 mod ops;
 
-use address::Relative;
 pub use address::Address;
+use address::Relative;
 pub use buffer::Buffer;
 use execute::ProgramCounter;
 pub use execute::{Executable, ExecutionError};
@@ -281,7 +281,6 @@ mod tests {
         run_program_test(LARGE_NUMBERS, 0, &[1125899906842624])
     }
 
-
     #[test]
     fn produce_16_digit_num() -> Result<()> {
         const PRODUCE_NUM: &str = "1102,34915192,34915192,7,4,7,99,0";
@@ -292,7 +291,9 @@ mod tests {
     #[test]
     fn quine() -> Result<()> {
         const QUINE: &str = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
-        const EXPECTED: &[Word] = &[109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99];
+        const EXPECTED: &[Word] = &[
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
         run_program_test(QUINE, 0, EXPECTED)
     }
 }

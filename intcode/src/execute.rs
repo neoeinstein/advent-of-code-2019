@@ -1,5 +1,7 @@
 use super::{
-    decode::{decode, BinaryOperands, Decoded, InputOperands, JumpIfOperands, OutputOperands},
+    decode::{
+        self, decode, BinaryOperands, Decoded, InputOperands, JumpIfOperands, OutputOperands,
+    },
     error,
     ops::Instruction,
     Address, Buffer, Memory, Relative, Word,
@@ -75,6 +77,7 @@ pub struct Executable {
     rel: Address,
     input: Receiver<Word>,
     output: Sender<Word>,
+    steps: usize,
 }
 
 impl From<Memory> for Executable {
@@ -86,6 +89,7 @@ impl From<Memory> for Executable {
             rel: Address::new(0),
             input: channel().1,
             output: channel().0,
+            steps: 0,
         }
     }
 }
@@ -122,17 +126,15 @@ impl Executable {
         OutputDrain(rx)
     }
 
-    fn exec_read(&self, address: Address) -> Result<Word, ExecutionErrorInner> {
-        Ok(self
+    fn read_instruction(&self) -> Result<Decoded, ExecutionErrorInner> {
+        let op = self
             .memory
-            .try_read(address)
-            .context(OutOfBoundsAccess { pc: self.pc })?)
-    }
+            .try_read(self.pc.address())
+            .context(UnexpectedEndOfProgram { pc: self.pc })?;
 
-    fn exec_write(&mut self, address: Address, value: Word) -> Result<Word, ExecutionErrorInner> {
-        self.memory
-            .try_write(address, value)
-            .context(OutOfBoundsAccess { pc: self.pc })
+        let i = Instruction::try_from(op).context(InvalidInstruction { pc: self.pc })?;
+
+        decode(i, self.pc, &self.memory)
     }
 
     pub fn execute_in_thread(self) -> std::thread::JoinHandle<Result<Memory, ExecutionError>> {
@@ -149,15 +151,11 @@ impl Executable {
     }
 
     pub fn step(&mut self) -> Result<bool, ExecutionError> {
-        let i = Instruction::try_from(self.exec_read(self.pc.address())?)
-            .context(InvalidInstruction { pc: self.pc })?;
-
-        let decoded = decode(i, self.pc, &self.memory)?;
-
-        Ok(self.execute_op(decoded)?)
+        Ok(self.execute_op(self.read_instruction()?)?)
     }
 
     fn execute_op(&mut self, op: Decoded) -> Result<bool, ExecutionErrorInner> {
+        self.steps += 1;
         match op {
             Decoded::Add(params) => self.execute_binary_op(params, ops::Add::add),
             Decoded::Mul(params) => self.execute_binary_op(params, ops::Mul::mul),
@@ -169,7 +167,12 @@ impl Executable {
             Decoded::Equal(params) => self.execute_cmp(params, Word::eq),
             Decoded::AddRel(params) => self.execute_add_rel(params),
             Decoded::Halt => {
-                log::debug!("{}@{}: halt", self.id, self.pc);
+                log::trace!("{}@{}: halt", self.id, self.pc);
+                log::debug!(
+                    "halted (steps = {}; memory size = {})",
+                    self.steps,
+                    self.memory.max_address().value() + 1
+                );
                 return Ok(false);
             }
         }?;
@@ -184,16 +187,16 @@ impl Executable {
         let left = operands
             .left
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
         let right = operands
             .right
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
         let result = f(left, right);
 
-        log::debug!("{}@{}: {} {} = {}", self.id, self.pc, left, right, result);
+        log::trace!("{}@{}: {} {} = {}", self.id, self.pc, left, right, result);
 
-        self.exec_write(operands.target, result)?;
+        operands.target.store(self.rel, &mut self.memory, result);
 
         self.pc.advance(4);
         Ok(())
@@ -205,9 +208,10 @@ impl Executable {
             .recv()
             .context(UnexpectedEndOfInput { pc: self.pc })?;
 
-        log::debug!("{}@{}: {} =>", self.id, self.pc, value);
+        log::trace!("{}@{}: {} =>", self.id, self.pc, value);
 
-        self.exec_write(operands.target, value)?;
+        operands.target.store(self.rel, &mut self.memory, value);
+
         self.pc.advance(2);
         Ok(())
     }
@@ -216,9 +220,9 @@ impl Executable {
         let value = operands
             .source
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
 
-        log::debug!("{}@{}: => {}", self.id, self.pc, value);
+        log::trace!("{}@{}: => {}", self.id, self.pc, value);
 
         self.output
             .send(value)
@@ -231,13 +235,18 @@ impl Executable {
         let value = operands
             .source
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
 
-        let next = (self.rel + Relative::from(value)).context(InvalidAddress {
-            pc: self.pc
-        })?;
+        let next = (self.rel + Relative::from(value)).context(InvalidAddress { pc: self.pc })?;
 
-        log::debug!("{}@{}: {} {} => {}", self.id, self.pc, self.rel, value, next);
+        log::trace!(
+            "{}@{}: {} {} => {}",
+            self.id,
+            self.pc,
+            self.rel,
+            value,
+            next
+        );
 
         self.rel = next;
         self.pc.advance(2);
@@ -252,19 +261,19 @@ impl Executable {
         let value = operands
             .value
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
         let target_raw = operands
             .jump_target
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
         let target = Address::try_from(target_raw).context(InvalidAddress { pc: self.pc })?;
 
         if (value != 0) == non_zero {
-            log::debug!("{}@{}: {} ~> {}", self.id, self.pc, value, target);
+            log::trace!("{}@{}: {} ~> {}", self.id, self.pc, value, target);
 
             self.pc.jump(target);
         } else {
-            log::debug!("{}@{}: {} !~>", self.id, self.pc, value);
+            log::trace!("{}@{}: {} !~>", self.id, self.pc, value);
 
             self.pc.advance(3);
         }
@@ -280,17 +289,17 @@ impl Executable {
         let left = operands
             .left
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
         let right = operands
             .right
             .load(self.rel, &self.memory)
-            .context(OutOfBoundsAccess { pc: self.pc })?;
+            .context(InvalidAddress { pc: self.pc })?;
 
         let result = if f(&left, &right) { 1 } else { 0 };
 
-        log::debug!("{}@{}: {} {} = {}", self.id, self.pc, left, right, result);
+        log::trace!("{}@{}: {} {} = {}", self.id, self.pc, left, right, result);
 
-        self.exec_write(operands.target, result)?;
+        operands.target.store(self.rel, &mut self.memory, result);
 
         self.pc.advance(4);
         Ok(())
@@ -337,9 +346,19 @@ pub(crate) enum ExecutionErrorInner {
         source: error::OutOfBoundsAccess,
         pc: ProgramCounter,
     },
+    #[snafu(display("unexpected end of program; pc = {}", pc))]
+    UnexpectedEndOfProgram {
+        source: error::OutOfBoundsAccess,
+        pc: ProgramCounter,
+    },
     #[snafu(display("invalid address; pc = {}", pc))]
     InvalidAddress {
         source: error::InvalidAddress,
+        pc: ProgramCounter,
+    },
+    #[snafu(display("unable to decode instruction; pc = {}", pc))]
+    DecodeError {
+        source: decode::DecodeError,
         pc: ProgramCounter,
     },
     #[snafu(display("unexpected end of input; pc = {}", pc))]

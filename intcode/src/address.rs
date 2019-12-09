@@ -12,12 +12,12 @@ impl fmt::Display for Address {
 }
 
 impl Address {
-    /// Constructs a new `Address` from a raw offset
+    /// Constructs a new `Address` from a raw value
     pub const fn new(addr: usize) -> Self {
         Self(addr)
     }
 
-    /// Extracts the raw address offset
+    /// Extracts the raw address
     pub const fn value(self) -> usize {
         self.0
     }
@@ -50,7 +50,7 @@ impl Relative {
         Self(offset)
     }
 
-    /// Extracts the raw address offset
+    /// Extracts the raw offset
     pub const fn value(self) -> Word {
         self.0
     }

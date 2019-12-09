@@ -89,15 +89,24 @@ impl Memory {
     }
 
     /// Provides immutable access to the underlying memory
+    #[inline]
     pub fn raw(&self) -> &[Word] {
         &self.data
     }
 
+    /// Returns the size of allocated memory in `Word`s
+    #[inline]
+    pub fn size(&self) -> usize {
+        self.data.len()
+    }
+
     /// Returns the maximum valid address in memory
+    #[inline]
     pub fn max_address(&self) -> Address {
         Address::new(self.data.len() - 1)
     }
 
+    #[inline]
     pub fn set_memory_limit(&mut self, capacity: usize) {
         self.data.resize_with(capacity, || 0);
     }
@@ -106,16 +115,17 @@ impl Memory {
     ///
     /// Returns `None` if the address is outside the bounds of legal addresses.
     pub fn try_read(&self, address: Address) -> Result<Word, error::OutOfBoundsAccess> {
-        if address > self.max_address() {
-            log::debug!("reading from zeroed memory address {}", address);
-            return Ok(0)
-        }
-
         self.data
             .get(address.value())
             .copied()
-            .or_else(|| Some(0))
             .ok_or(error::OutOfBoundsAccess::new(address))
+    }
+
+    /// Attempts to read a value from a given address
+    ///
+    /// Returns `0` if the address is outside the bounds of legal addresses.
+    pub fn read_or_default(&self, address: Address) -> Word {
+        self.data.get(address.value()).copied().unwrap_or(0)
     }
 
     /// Attempts to write a value to the given address
@@ -127,16 +137,26 @@ impl Memory {
         address: Address,
         value: Word,
     ) -> Result<Word, error::OutOfBoundsAccess> {
-        if address > self.max_address() {
-            log::debug!("increasing memory to allow access to address {}", address);
-            self.set_memory_limit(address.value() + 1);
-        }
-
         let sloc = self
             .data
             .get_mut(address.value())
             .ok_or(error::OutOfBoundsAccess::new(address))?;
         Ok(mem::replace(sloc, value))
+    }
+
+    /// Attempts to write a value to the given address, expanding memory if the
+    /// address is not in range
+    ///
+    /// Returns the prior value at that address, or `0` if memory was expanded
+    /// to accomodate the target address.
+    pub fn write_arbitrary(&mut self, address: Address, value: Word) -> Word {
+        if address > self.max_address() {
+            log::debug!("increasing memory to allow access to address {}", address);
+            self.set_memory_limit(address.value() + 1);
+        }
+
+        self.try_write(address, value)
+            .expect("memory should have been extended")
     }
 }
 

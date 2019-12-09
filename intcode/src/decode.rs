@@ -1,11 +1,11 @@
 use super::{
     error,
-    execute::{self, ExecutionError, ExecutionErrorInner},
+    execute::{self, ExecutionErrorInner},
     ops::{Instruction, OpCode, ParameterMode},
     Address, Memory, ProgramCounter, Relative, Word,
 };
 use arrayvec::ArrayVec;
-use snafu::ResultExt;
+use snafu::{ResultExt, Snafu};
 use std::{convert::TryFrom, fmt};
 
 macro_rules! decode_impl {
@@ -13,10 +13,12 @@ macro_rules! decode_impl {
         ensure_params($pc, Self::READ_PARAMS + Self::WRITE_PARAMS, $memory)
             .context(execute::OutOfBoundsAccess { pc: $pc })?;
 
-        let mut pmodes: ArrayVec<[ParameterMode; Self::READ_PARAMS as usize]> = ArrayVec::new();
+        let mut pmodes: ArrayVec<
+            [ParameterMode; (Self::READ_PARAMS + Self::WRITE_PARAMS) as usize],
+        > = ArrayVec::new();
         $modes.fill_params(&mut pmodes);
 
-        let addr_ctx = execute::InvalidAddress { pc: $pc };
+        let addr_ctx = execute::DecodeError { pc: $pc };
 
         let mut inputs: ArrayVec<[Parameter; Self::READ_PARAMS as usize]> = ArrayVec::new();
         for i in 0..Self::READ_PARAMS {
@@ -28,13 +30,13 @@ macro_rules! decode_impl {
             inputs.push(param);
         }
 
-        let mut outputs: ArrayVec<[Address; Self::WRITE_PARAMS as usize]> = ArrayVec::new();
+        let mut outputs: ArrayVec<[Output; Self::WRITE_PARAMS as usize]> = ArrayVec::new();
         for i in Self::READ_PARAMS..(Self::READ_PARAMS + Self::WRITE_PARAMS) {
             let param_addr = $pc.param(i);
             let value = $memory
                 .try_read(param_addr)
                 .context(execute::OutOfBoundsAccess { pc: $pc })?;
-            let addr = Address::try_from(value).context(addr_ctx)?;
+            let addr = Output::interpret(pmodes[i as usize], value).context(addr_ctx)?;
             outputs.push(addr);
         }
 
@@ -71,11 +73,12 @@ trait Decodable: Sized {
     ) -> Result<Self, ExecutionErrorInner>;
 }
 
+/// Operands for an instruction that has two inputs and one output
 #[derive(Debug, PartialEq, Eq)]
 pub struct BinaryOperands {
     pub left: Parameter,
     pub right: Parameter,
-    pub target: Address,
+    pub target: Output,
 }
 
 impl Decodable for BinaryOperands {
@@ -98,10 +101,11 @@ impl Decodable for BinaryOperands {
 
 impl fmt::Display for BinaryOperands {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{}, {} => ({})", self.left, self.right, self.target)
+        write!(f, "{}, {} => {}", self.left, self.right, self.target)
     }
 }
 
+/// Operands for an instruction that has two inputs and no outputs
 #[derive(Debug, PartialEq, Eq)]
 pub struct JumpIfOperands {
     pub value: Parameter,
@@ -131,9 +135,10 @@ impl fmt::Display for JumpIfOperands {
     }
 }
 
+/// Operands for an instruction that has only one output
 #[derive(Debug, PartialEq, Eq)]
 pub struct InputOperands {
-    pub target: Address,
+    pub target: Output,
 }
 
 impl Decodable for InputOperands {
@@ -152,10 +157,11 @@ impl Decodable for InputOperands {
 
 impl fmt::Display for InputOperands {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({})", self.target)
+        self.target.fmt(f)
     }
 }
 
+/// Operands for an instruction that has only one input
 #[derive(Debug, PartialEq, Eq)]
 pub struct OutputOperands {
     pub source: Parameter,
@@ -181,10 +187,11 @@ impl fmt::Display for OutputOperands {
     }
 }
 
+/// Operands for an instruction that has one input and one output
 #[derive(Debug, PartialEq, Eq)]
 pub struct UnaryOperands {
     pub value: Parameter,
-    pub target: Address,
+    pub target: Output,
 }
 
 impl Decodable for UnaryOperands {
@@ -206,10 +213,11 @@ impl Decodable for UnaryOperands {
 
 impl fmt::Display for UnaryOperands {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "{} => ({})", self.value, self.target)
+        write!(f, "{} => {}", self.value, self.target)
     }
 }
 
+/// A decoded instruction with parameters
 #[derive(Debug, PartialEq, Eq)]
 pub enum Decoded {
     Halt,
@@ -241,11 +249,11 @@ impl fmt::Display for Decoded {
     }
 }
 
-pub fn decode(
+pub(crate) fn decode(
     i: Instruction,
     pc: ProgramCounter,
     memory: &Memory,
-) -> Result<Decoded, ExecutionError> {
+) -> Result<Decoded, ExecutionErrorInner> {
     let decoded = match i.opcode() {
         OpCode::Halt => Decoded::Halt,
         OpCode::Add => Decoded::Add(Decodable::decode(i, pc, memory)?),
@@ -259,10 +267,12 @@ pub fn decode(
         OpCode::AddRel => Decoded::AddRel(Decodable::decode(i, pc, memory)?),
     };
 
-    log::debug!("@{}: {}", pc, decoded);
+    log::trace!("@{}: {}", pc, decoded);
 
     Ok(decoded)
 }
+
+/// An instruction input parameter
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 pub enum Parameter {
     Position(Address),
@@ -271,19 +281,26 @@ pub enum Parameter {
 }
 
 impl Parameter {
-    fn interpret(mode: ParameterMode, value: Word) -> Result<Self, error::InvalidAddress> {
+    fn interpret(mode: ParameterMode, value: Word) -> Result<Self, DecodeError> {
         match mode {
-            ParameterMode::Position => Ok(Parameter::Position(Address::try_from(value)?)),
+            ParameterMode::Position => Ok(Parameter::Position(
+                Address::try_from(value).context(InvalidAddress)?,
+            )),
             ParameterMode::Immediate => Ok(Parameter::Immediate(value)),
             ParameterMode::Relative => Ok(Parameter::Relative(Relative::from(value))),
         }
     }
 
-    pub fn load(self, relative_base: Address, memory: &Memory) -> Result<Word, error::OutOfBoundsAccess> {
+    /// Loads value from memory
+    pub fn load(
+        self,
+        relative_base: Address,
+        memory: &Memory,
+    ) -> Result<Word, error::InvalidAddress> {
         match self {
-            Parameter::Position(addr) => memory.try_read(addr),
+            Parameter::Position(addr) => Ok(memory.read_or_default(addr)),
             Parameter::Immediate(value) => Ok(value),
-            Parameter::Relative(offset) => memory.try_read((relative_base + offset).expect("valid address"))
+            Parameter::Relative(offset) => Ok(memory.read_or_default((relative_base + offset)?)),
         }
     }
 }
@@ -296,4 +313,50 @@ impl fmt::Display for Parameter {
             Parameter::Relative(offset) => write!(f, "(rel{})", offset),
         }
     }
+}
+
+/// An instruction output parameter
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Output {
+    Position(Address),
+    Relative(Relative),
+}
+
+impl Output {
+    fn interpret(mode: ParameterMode, value: Word) -> Result<Self, DecodeError> {
+        match mode {
+            ParameterMode::Position => Ok(Output::Position(
+                Address::try_from(value).context(InvalidAddress)?,
+            )),
+            ParameterMode::Immediate => Err(DecodeError::InvalidOutputMode { mode }),
+            ParameterMode::Relative => Ok(Output::Relative(Relative::from(value))),
+        }
+    }
+
+    /// Stores a value to memory
+    pub fn store(self, relative_base: Address, memory: &mut Memory, value: Word) -> Word {
+        match self {
+            Output::Position(addr) => memory.write_arbitrary(addr, value),
+            Output::Relative(offset) => {
+                memory.write_arbitrary((relative_base + offset).expect("valid address"), value)
+            }
+        }
+    }
+}
+
+impl fmt::Display for Output {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            Output::Position(addr) => write!(f, "({})", addr),
+            Output::Relative(offset) => write!(f, "(rel{})", offset),
+        }
+    }
+}
+
+#[derive(Snafu, Debug)]
+pub enum DecodeError {
+    #[snafu(display("instruction refers to illegal address"))]
+    InvalidAddress { source: error::InvalidAddress },
+    #[snafu(display("invalid mode for instruction output (mode = {})", mode,))]
+    InvalidOutputMode { mode: ParameterMode },
 }

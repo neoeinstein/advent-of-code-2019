@@ -1,6 +1,7 @@
 use std::{env, fs, io, path::PathBuf};
 
 pub mod day07;
+pub mod day09;
 
 fn get_input_filename() -> Option<PathBuf> {
     let in_file = env::args().nth(1)?;
@@ -20,4 +21,15 @@ pub fn get_input_reader() -> Box<dyn io::BufRead> {
         )),
         None => Box::new(io::BufReader::new(io::stdin())),
     }
+}
+
+pub fn run_intcode_program_single_in_single_out(program: intcode::Memory, input: intcode::Word) -> Result<intcode::Word, intcode::ExecutionError> {
+    let mut exe = intcode::Executable::from(program);
+
+    exe.single_input(input);
+    let drain = exe.drain();
+
+    exe.execute()?;
+
+    Ok(drain.to_vec()[0])
 }

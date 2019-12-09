@@ -1,7 +1,7 @@
 use super::Word;
 use arrayvec::{Array, ArrayVec};
 use snafu::Snafu;
-use std::convert::TryFrom;
+use std::{convert::TryFrom, fmt};
 
 /// Describes the instruction, including the operation to be executed as well as
 /// how to interpret any parameters that have been provided
@@ -129,7 +129,8 @@ pub enum ParameterMode {
     Position,
     /// The parameter is the value to be used for the operation
     Immediate,
-    /// The parameter is at an address relative to the current relative address base
+    /// The parameter is at an address relative to the current relative address
+    /// base
     Relative,
 }
 
@@ -147,6 +148,18 @@ impl ParameterMode {
             2 => Some(ParameterMode::Relative),
             _ => None,
         }
+    }
+}
+
+impl fmt::Display for ParameterMode {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let mode = match self {
+            ParameterMode::Position => "position",
+            ParameterMode::Immediate => "immediate",
+            ParameterMode::Relative => "relative",
+        };
+
+        f.write_str(mode)
     }
 }
 
