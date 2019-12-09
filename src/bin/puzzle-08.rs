@@ -57,49 +57,6 @@ struct Image {
     data: Vec<u8>,
 }
 
-#[derive(Clone, Debug, PartialEq, Eq)]
-struct Layer<'a> {
-    dimensions: (usize, usize),
-    data: Cow<'a, [u8]>,
-}
-
-#[derive(Debug)]
-struct LayerIterator<'a> {
-    lower: usize,
-    upper: usize,
-    image: &'a Image,
-}
-
-impl<'a> Iterator for LayerIterator<'a> {
-    type Item = Layer<'a>;
-    fn size_hint(&self) -> (usize, Option<usize>) {
-        let size = self.image.layer_count();
-        (size, Some(size))
-    }
-
-    fn next(&mut self) -> Option<Self::Item> {
-        if self.lower == self.upper {
-            return None;
-        }
-        let layer = self.image.layer(self.lower);
-        self.lower += 1;
-        Some(layer)
-    }
-}
-
-impl<'a> DoubleEndedIterator for LayerIterator<'a> {
-    fn next_back(&mut self) -> Option<Self::Item> {
-        if self.lower == self.upper {
-            return None;
-        }
-        let layer = self.image.layer(self.upper - 1);
-        self.upper -= 1;
-        Some(layer)
-    }
-}
-
-impl<'a> ExactSizeIterator for LayerIterator<'a> {}
-
 impl Image {
     const fn layer_size(&self) -> usize {
         self.dimensions.0 * self.dimensions.1
@@ -139,15 +96,46 @@ impl Image {
     }
 
     fn resolve(&self) -> Layer {
-        let background = self.layers().last().unwrap();
+        let mut layers = self.layers();
+        let foreground = layers.next().unwrap();
 
-        let image = self.layers().rev().skip(1).fold(background, |mut b, m| {
-            b.apply_mask(m);
-            b
+        let image = layers.fold(foreground, |mask, mut back| {
+            println!("Current:\n{}", mask);
+            back.apply_mask(mask);
+            // std::thread::sleep(std::time::Duration::from_millis(500));
+            back
         });
 
         image
     }
+
+    fn resolve_back(&self) -> Layer {
+        let mut layers = self.layers().rev();
+        let background = layers.next().unwrap();
+
+        let image = layers.fold(background, |mut back, mask| {
+            println!("Current:\n{}", back);
+            back.apply_mask(mask);
+            // std::thread::sleep(std::time::Duration::from_millis(500));
+            back
+        });
+
+        image
+    }
+}
+
+impl<'a> fmt::Display for Image {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let image = self.resolve();
+
+        image.fmt(f)
+    }
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
+struct Layer<'a> {
+    dimensions: (usize, usize),
+    data: Cow<'a, [u8]>,
 }
 
 impl<'a> Layer<'a> {
@@ -173,14 +161,6 @@ impl<'a> Layer<'a> {
     }
 }
 
-impl<'a> fmt::Display for Image {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let image = self.resolve();
-
-        image.fmt(f)
-    }
-}
-
 impl<'a> fmt::Display for Layer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (i, b) in self.data.iter().enumerate() {
@@ -200,6 +180,43 @@ impl<'a> fmt::Display for Layer<'a> {
         Ok(())
     }
 }
+
+#[derive(Debug)]
+struct LayerIterator<'a> {
+    lower: usize,
+    upper: usize,
+    image: &'a Image,
+}
+
+impl<'a> Iterator for LayerIterator<'a> {
+    type Item = Layer<'a>;
+    fn size_hint(&self) -> (usize, Option<usize>) {
+        let size = self.image.layer_count();
+        (size, Some(size))
+    }
+
+    fn next(&mut self) -> Option<Self::Item> {
+        if self.lower == self.upper {
+            return None;
+        }
+        let layer = self.image.layer(self.lower);
+        self.lower += 1;
+        Some(layer)
+    }
+}
+
+impl<'a> DoubleEndedIterator for LayerIterator<'a> {
+    fn next_back(&mut self) -> Option<Self::Item> {
+        if self.lower == self.upper {
+            return None;
+        }
+        let layer = self.image.layer(self.upper - 1);
+        self.upper -= 1;
+        Some(layer)
+    }
+}
+
+impl<'a> ExactSizeIterator for LayerIterator<'a> {}
 
 fn main() -> Result<()> {
     let mut input = String::new();
@@ -226,8 +243,16 @@ fn main() -> Result<()> {
         best_layer[1] * best_layer[2]
     );
 
-    let resolved = image.resolve();
+    for (i, layer) in image.layers().enumerate() {
+        println!("Layer {}:\n{}", i, layer);
+    }
 
+    println!("Resolving… [from background forward]");
+    let resolved = image.resolve_back();
+    println!("Resolved:\n{}", resolved);
+
+    println!("Resolving… [from foreground backward]");
+    let resolved = image.resolve();
     println!("Resolved:\n{}", resolved);
 
     Ok(())
@@ -312,6 +337,21 @@ mod tests {
         println!("Result:\n{}", actual);
 
         assert_eq!(actual, EXPECTED_LAYER);
+
+        Ok(())
+    }
+
+    #[test]
+    fn part_2_example_resolve_cmp() -> Result<()> {
+        let image = Image::from_bytes(TEST_IMAGE_2, LAYER_DIMENSIONS_2);
+
+        let left = image.resolve();
+        let right = image.resolve_back();
+
+        println!("resolve():\n{}", left);
+        println!("resolve_back():\n{}", right);
+
+        assert_eq!(left, right);
 
         Ok(())
     }
