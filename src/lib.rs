@@ -1,5 +1,7 @@
 use std::{env, fs, io, path::PathBuf};
 
+pub mod day07;
+
 fn get_input_filename() -> Option<PathBuf> {
     let in_file = env::args().nth(1)?;
     if in_file == "-" {

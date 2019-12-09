@@ -11,7 +11,7 @@ arrayvec = "0.5"
 log = "0.4"
 thiserror = "1"
 snafu = "0.6"
-static_assertions = "*"
+static_assertions = "1.1"
 
 [dev-dependencies]
 anyhow = "1"
