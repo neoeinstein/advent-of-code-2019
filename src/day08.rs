@@ -41,18 +41,67 @@
 //! To make sure the image wasn't corrupted during transmission, the Elves would
 //! like you to find the layer that contains the fewest 0 digits. On that layer,
 //! what is the number of 1 digits multiplied by the number of 2 digits?
+//!
+//! ## Part Two
+//!
+//! Now you're ready to decode the image. The image is rendered by stacking the
+//! layers and aligning the pixels with the same positions in each layer. The
+//! digits indicate the color of the corresponding pixel: 0 is black, 1 is
+//! white, and 2 is transparent.
+//!
+//! The layers are rendered with the first layer in front and the last layer in
+//! back. So, if a given position has a transparent pixel in the first and
+//! second layers, a black pixel in the third layer, and a white pixel in the
+//! fourth layer, the final image would have a black pixel at that position.
+//!
+//! For example, given an image 2 pixels wide and 2 pixels tall, the image data
+//! `0222112222120000` corresponds to the following image layers:
+//!
+//! ```text
+//! Layer 1: 02
+//!          22
+//!
+//! Layer 2: 11
+//!          22
+//!
+//! Layer 3: 22
+//!          12
+//!
+//! Layer 4: 00
+//!          00
+//! ```
+//!
+//! Then, the full image can be found by determining the top visible pixel in
+//! each position:
+//!
+//! * The top-left pixel is black because the top layer is 0.
+//! * The top-right pixel is white because the top layer is 2 (transparent), but
+//!   the second layer is 1.
+//! * The bottom-left pixel is white because the top two layers are 2, but the
+//!   third layer is 1.
+//! * The bottom-right pixel is black because the only visible pixel in that
+//!   position is 0 (from layer 4).
+//!
+//! So, the final image looks like this:
+//!
+//! ```text
+//! 01
+//! 10
+//! ```
+//!
+//! What message is produced after decoding your image?
 
-use advent_of_code_2019::get_input_reader;
-use anyhow::Result;
 use std::{
     borrow::Cow,
     fmt,
-    io::Read,
     iter::{DoubleEndedIterator, ExactSizeIterator},
 };
 
+pub const PUZZLE_DIMENSIONS: (usize, usize) = (25, 6);
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-08");
+
 #[derive(Debug, PartialEq, Eq)]
-struct Image {
+pub struct Image {
     dimensions: (usize, usize),
     data: Vec<u8>,
 }
@@ -62,7 +111,7 @@ impl Image {
         self.dimensions.0 * self.dimensions.1
     }
 
-    fn from_bytes(bytes: impl Into<Vec<u8>>, dimensions: (usize, usize)) -> Self {
+    pub fn from_bytes(bytes: impl Into<Vec<u8>>, dimensions: (usize, usize)) -> Self {
         let data = bytes.into();
         assert_eq!(data.len() % (dimensions.0 * dimensions.1), 0);
 
@@ -82,7 +131,7 @@ impl Image {
         self.data.len() / self.layer_size()
     }
 
-    fn layers(&self) -> LayerIterator {
+    pub fn layers(&self) -> LayerIterator {
         LayerIterator {
             lower: 0,
             upper: self.layer_count(),
@@ -95,12 +144,26 @@ impl Image {
         self.layer_at(start)
     }
 
-    fn resolve(&self) -> Layer {
+    pub fn checksum(&self) -> (usize, u32) {
+        let mut best_layer = [u32::max_value(); 3];
+        let mut best_layer_num = 0;
+        for layer in self.layers().enumerate() {
+            let current_count = layer.1.count_chars();
+            if current_count[0] < best_layer[0] {
+                best_layer = current_count;
+                best_layer_num = layer.0;
+            }
+        }
+
+        (best_layer_num, best_layer[1] * best_layer[2])
+    }
+
+    pub fn resolve(&self) -> Layer {
         let mut layers = self.layers();
         let foreground = layers.next().unwrap();
 
         let image = layers.fold(foreground, |mask, mut back| {
-            println!("Current:\n{}", mask);
+            log::trace!("Current:\n{}", mask);
             back.apply_mask(mask);
             // std::thread::sleep(std::time::Duration::from_millis(500));
             back
@@ -109,12 +172,12 @@ impl Image {
         image
     }
 
-    fn resolve_back(&self) -> Layer {
+    pub fn resolve_back(&self) -> Layer {
         let mut layers = self.layers().rev();
         let background = layers.next().unwrap();
 
         let image = layers.fold(background, |mut back, mask| {
-            println!("Current:\n{}", back);
+            log::trace!("Current:\n{}", back);
             back.apply_mask(mask);
             // std::thread::sleep(std::time::Duration::from_millis(500));
             back
@@ -133,7 +196,7 @@ impl<'a> fmt::Display for Image {
 }
 
 #[derive(Clone, Debug, PartialEq, Eq)]
-struct Layer<'a> {
+pub struct Layer<'a> {
     dimensions: (usize, usize),
     data: Cow<'a, [u8]>,
 }
@@ -159,6 +222,13 @@ impl<'a> Layer<'a> {
             }
         }
     }
+
+    pub fn to_owned(self) -> Layer<'static> {
+        Layer {
+            dimensions: self.dimensions,
+            data: Cow::Owned(self.data.into_owned()),
+        }
+    }
 }
 
 impl<'a> fmt::Display for Layer<'a> {
@@ -182,7 +252,7 @@ impl<'a> fmt::Display for Layer<'a> {
 }
 
 #[derive(Debug)]
-struct LayerIterator<'a> {
+pub struct LayerIterator<'a> {
     lower: usize,
     upper: usize,
     image: &'a Image,
@@ -217,46 +287,6 @@ impl<'a> DoubleEndedIterator for LayerIterator<'a> {
 }
 
 impl<'a> ExactSizeIterator for LayerIterator<'a> {}
-
-fn main() -> Result<()> {
-    let mut input = String::new();
-    get_input_reader().read_to_string(&mut input)?;
-
-    const LAYER_DIMENSIONS: (usize, usize) = (25, 6);
-
-    let image = Image::from_bytes(input.trim(), LAYER_DIMENSIONS);
-
-    let mut best_layer = [u32::max_value(); 3];
-    let mut best_layer_num = 0;
-    for layer in image.layers().enumerate() {
-        let current_count = layer.1.count_chars();
-        if current_count[0] < best_layer[0] {
-            best_layer = current_count;
-            best_layer_num = layer.0;
-        }
-    }
-
-    println!(
-        "Best layer was layer {}: {:?} => {}",
-        best_layer_num,
-        best_layer,
-        best_layer[1] * best_layer[2]
-    );
-
-    for (i, layer) in image.layers().enumerate() {
-        println!("Layer {}:\n{}", i, layer);
-    }
-
-    println!("Resolving… [from background forward]");
-    let resolved = image.resolve_back();
-    println!("Resolved:\n{}", resolved);
-
-    println!("Resolving… [from foreground backward]");
-    let resolved = image.resolve();
-    println!("Resolved:\n{}", resolved);
-
-    Ok(())
-}
 
 #[cfg(test)]
 mod tests {

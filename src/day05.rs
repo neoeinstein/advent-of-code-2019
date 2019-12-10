@@ -169,23 +169,18 @@
 //!
 //! What is the diagnostic code for system ID 5?
 
-use advent_of_code_2019::get_input_reader;
 use anyhow::Result;
 
-fn main() -> Result<()> {
-    let memory = intcode::Memory::from_buf_reader(&mut get_input_reader())?;
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-05");
 
-    let mut exe = intcode::Executable::from(memory);
+pub fn run_system_1_diagnostic(
+    program: intcode::Memory,
+) -> Result<Vec<intcode::Word>, intcode::ExecutionError> {
+    super::run_intcode_program_single_in(program, 1)
+}
 
-    let input = if cfg!(feature = "part-1") { 1 } else { 5 };
-
-    exe.single_input(input);
-
-    let drain = exe.drain();
-
-    exe.execute()?;
-
-    println!("Result: {:?}", drain.to_vec());
-
-    Ok(())
+pub fn run_system_5_diagnostic(
+    program: intcode::Memory,
+) -> Result<intcode::Word, intcode::ExecutionError> {
+    super::run_intcode_program_single_in_single_out(program, 5)
 }

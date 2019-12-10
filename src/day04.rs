@@ -39,8 +39,19 @@
 //! How many different passwords within the range given in your puzzle input
 //! meet all of the criteria?
 
-use advent_of_code_2019::get_input_reader;
-use std::{io::Read, ops};
+use std::ops;
+
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-04");
+
+pub fn parse_input() -> ops::RangeInclusive<u32> {
+    let values: Vec<u32> = PUZZLE_INPUT
+        .split('-')
+        .filter(|op| !op.is_empty())
+        .map(|op| op.trim().parse().expect("data must be a valid integer"))
+        .collect();
+
+    (values[0]..=values[1])
+}
 
 struct DigitIterator(u32);
 
@@ -76,6 +87,21 @@ fn digits_are_in_increasing_order(x: u32) -> bool {
     true
 }
 
+fn contains_a_pair(x: u32) -> bool {
+    let mut iter = DigitIterator::from(x);
+    let mut last = iter.next().expect("number to have digits");
+
+    for digit in iter {
+        if digit == last {
+            return true;
+        }
+
+        last = digit;
+    }
+
+    false
+}
+
 fn contains_a_proper_pair(x: u32) -> bool {
     let mut iter = DigitIterator::from(x);
     let mut last = iter.next().expect("number to have digits");
@@ -103,27 +129,16 @@ fn contains_a_proper_pair(x: u32) -> bool {
     is_in_pair && !too_long
 }
 
-fn parse_input() -> ops::RangeInclusive<u32> {
-    let mut in_fd = get_input_reader();
-    let mut data = String::new();
-    in_fd.read_to_string(&mut data).expect("error reading data");
-
-    let values: Vec<u32> = data
-        .split('-')
-        .filter(|op| !op.is_empty())
-        .map(|op| op.trim().parse().expect("data must be a valid integer"))
-        .collect();
-
-    (values[0]..=values[1])
+pub fn find_valid_passwords_part_1(range: ops::RangeInclusive<u32>) -> usize {
+    range
+        .filter(|&x| digits_are_in_increasing_order(x))
+        .filter(|&x| contains_a_pair(x))
+        .count()
 }
 
-fn main() {
-    let range = parse_input();
-
-    let result = range
+pub fn find_valid_passwords_part_2(range: ops::RangeInclusive<u32>) -> usize {
+    range
         .filter(|&x| digits_are_in_increasing_order(x))
         .filter(|&x| contains_a_proper_pair(x))
-        .count();
-
-    println!("Count: {}", result);
+        .count()
 }

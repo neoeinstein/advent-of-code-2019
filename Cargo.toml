@@ -10,6 +10,7 @@ edition = "2018"
 anyhow = "1"
 env_logger = "0.7"
 intcode = { path = "./intcode" }
+log = "0.4"
 
 [dev-dependencies]
 criterion = "0.3"
@@ -18,6 +19,10 @@ pretty_assertions = "0.6"
 [[bench]]
 name = "bench"
 harness = false
+
+[profile.bench]
+codegen-units = 1
+lto = true
 
 [features]
 part-1 = []

@@ -125,8 +125,23 @@
 //! What is the fewest combined steps the wires must take to reach an
 //! intersection?
 
-use advent_of_code_2019::get_input_reader;
-use std::{fmt, io::BufRead, str::FromStr};
+use std::{
+    fmt,
+    io::{self, BufRead},
+    str::FromStr,
+};
+
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-03");
+
+pub fn parse_input() -> (Wire, Wire) {
+    let in_fd = io::Cursor::new(PUZZLE_INPUT);
+    let mut lines = in_fd
+        .lines()
+        .map(|l| l.expect("error reading line"))
+        .filter(|l| !l.is_empty())
+        .map(|wire_str| wire_str.parse().expect("data must be a valid integer"));
+    (lines.next().unwrap(), lines.next().unwrap())
+}
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Direction {
@@ -146,7 +161,7 @@ impl Direction {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct InvalidDirection;
+pub struct InvalidDirection;
 
 impl FromStr for Direction {
     type Err = InvalidDirection;
@@ -224,17 +239,17 @@ impl FromStr for Directive {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct CandidatePoint {
+pub struct CandidatePoint {
     point: (i32, i32),
     total_wire_delay: usize,
 }
 
 impl CandidatePoint {
-    fn manhattan_distance_from_origin(self) -> usize {
+    pub fn manhattan_distance_from_origin(self) -> usize {
         self.point.0.abs() as usize + self.point.1.abs() as usize
     }
 
-    fn wire_delay_to_point(self) -> usize {
+    pub fn wire_delay_to_point(self) -> usize {
         self.total_wire_delay
     }
 
@@ -269,9 +284,11 @@ impl CandidatePoint {
                     + added_hor_dist,
             };
 
-            println!(
+            log::debug!(
                 "{} and {} intersect at candidate {}",
-                ver_seg, hor_seg, candidate
+                ver_seg,
+                hor_seg,
+                candidate
             );
             Some(candidate)
         } else {
@@ -293,7 +310,7 @@ impl fmt::Display for CandidatePoint {
 }
 
 #[derive(Clone, Copy, Debug)]
-struct Segment {
+pub struct Segment {
     point: (i32, i32),
     directive: Directive,
     wire_delay: usize,
@@ -321,12 +338,12 @@ impl fmt::Display for Segment {
 }
 
 #[derive(Clone, Debug)]
-struct Wire {
+pub struct Wire {
     segments: Vec<Segment>,
 }
 
 impl Wire {
-    fn find_intersections(
+    pub fn find_intersections(
         &self,
         seg: &Segment,
         weight_function: fn(CandidatePoint) -> usize,
@@ -356,7 +373,7 @@ impl FromStr for Wire {
                     };
                     let next = seg.next_point();
                     let next_dist = wire_delay + seg.directive.distance as usize;
-                    //println!("{:?} => {:?}", seg, next);
+                    log::trace!("{:?} => {:?}", seg, next);
                     segs.push(seg);
                     (next, next_dist, segs)
                 },
@@ -365,33 +382,15 @@ impl FromStr for Wire {
     }
 }
 
-fn parse_input() -> Vec<Wire> {
-    let in_fd = get_input_reader();
-    in_fd
-        .lines()
-        .map(|l| l.expect("error reading line"))
-        .filter(|l| !l.is_empty())
-        .map(|wire_str| wire_str.parse().expect("data must be a valid integer"))
-        .collect()
-}
-
-fn main() {
-    let wires = parse_input();
-    //println!("{:?}", wires);
-
-    let weight_function = if cfg!(feature = "part-1") {
-        CandidatePoint::wire_delay_to_point
-    } else {
-        CandidatePoint::manhattan_distance_from_origin
-    };
-
-    let dist = wires[0]
-        .segments
+pub fn find_nearest_intersection(
+    left: &Wire,
+    right: &Wire,
+    weight_function: fn(CandidatePoint) -> usize,
+) -> Option<usize> {
+    left.segments
         .iter()
-        .filter_map(|seg| wires[1].find_intersections(seg, weight_function))
-        .min();
-
-    println!("{:?}", dist);
+        .filter_map(|seg| right.find_intersections(seg, weight_function))
+        .min()
 }
 
 #[cfg(test)]
@@ -412,8 +411,8 @@ mod tests {
         const EXPECTED: usize = 159;
 
         least_distance_to_closest_intersection(
-            wire1,
-            wire2,
+            &wire1,
+            &wire2,
             CandidatePoint::manhattan_distance_from_origin,
             EXPECTED,
         );
@@ -427,8 +426,8 @@ mod tests {
         const EXPECTED: usize = 135;
 
         least_distance_to_closest_intersection(
-            wire1,
-            wire2,
+            &wire1,
+            &wire2,
             CandidatePoint::manhattan_distance_from_origin,
             EXPECTED,
         );
@@ -442,8 +441,8 @@ mod tests {
         const EXPECTED: usize = 610;
 
         least_distance_to_closest_intersection(
-            wire1,
-            wire2,
+            &wire1,
+            &wire2,
             CandidatePoint::wire_delay_to_point,
             EXPECTED,
         );
@@ -457,26 +456,21 @@ mod tests {
         const EXPECTED: usize = 410;
 
         least_distance_to_closest_intersection(
-            wire1,
-            wire2,
+            &wire1,
+            &wire2,
             CandidatePoint::wire_delay_to_point,
             EXPECTED,
         );
     }
 
     fn least_distance_to_closest_intersection(
-        wire1: Wire,
-        wire2: Wire,
+        wire1: &Wire,
+        wire2: &Wire,
         distance_calc: fn(CandidatePoint) -> usize,
         expected: usize,
     ) {
-        let actual = wire1
-            .segments
-            .iter()
-            .filter_map(|seg| wire2.find_intersections(seg, distance_calc))
-            .min()
-            .unwrap();
+        let actual = super::find_nearest_intersection(wire1, wire2, distance_calc).unwrap();
 
-        assert_eq!(expected, actual);
+        assert_eq!(actual, expected);
     }
 }

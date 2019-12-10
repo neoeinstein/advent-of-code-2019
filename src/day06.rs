@@ -36,17 +36,19 @@
 //!
 //! For example, suppose you have the following map:
 //!
-//!     COM)B
-//!     B)C
-//!     C)D
-//!     D)E
-//!     E)F
-//!     B)G
-//!     G)H
-//!     D)I
-//!     E)J
-//!     J)K
-//!     K)L
+//! ```text
+//! COM)B
+//! B)C
+//! C)D
+//! D)E
+//! E)F
+//! B)G
+//! G)H
+//! D)I
+//! E)J
+//! J)K
+//! K)L
+//! ```
 //!
 //! Visually, the above map of orbits looks like this:
 //!
@@ -83,19 +85,21 @@
 //!
 //! For example, suppose you have the following map:
 //!
-//!     COM)B
-//!     B)C
-//!     C)D
-//!     D)E
-//!     E)F
-//!     B)G
-//!     G)H
-//!     D)I
-//!     E)J
-//!     J)K
-//!     K)L
-//!     K)YOU
-//!     I)SAN
+//! ```text
+//! COM)B
+//! B)C
+//! C)D
+//! D)E
+//! E)F
+//! B)G
+//! G)H
+//! D)I
+//! E)J
+//! J)K
+//! K)L
+//! K)YOU
+//! I)SAN
+//! ```
 //!
 //! Visually, the above map of orbits looks like this:
 //!
@@ -133,12 +137,18 @@
 //! object YOU are orbiting to the object SAN is orbiting? (Between the objects
 //! they are orbiting - not between YOU and SAN.)
 
-use advent_of_code_2019::get_input_reader;
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-06");
+
 use anyhow::Result;
-use std::{cell::RefCell, collections::HashMap, io::BufRead, rc::Rc};
+use std::{
+    cell::RefCell,
+    collections::HashMap,
+    io::{self, BufRead},
+    rc::Rc,
+};
 
 #[derive(Clone, Debug)]
-struct Orbit {
+pub struct Orbit {
     satelite: String,
     planet: String,
 }
@@ -172,12 +182,12 @@ impl Iterator for OrbitIterator {
 }
 
 #[derive(Clone, Debug)]
-struct OrbitTree {
+pub struct OrbitTree {
     orbit_map: HashMap<String, Rc<OrbitNode>>,
 }
 
 impl OrbitTree {
-    fn from_orbits(orbits: impl IntoIterator<Item = Orbit>) -> Self {
+    pub fn from_orbits(orbits: impl IntoIterator<Item = Orbit>) -> Self {
         let mut orbit_map = HashMap::<String, Rc<OrbitNode>>::new();
         for o in orbits {
             let planet_name = o.planet.clone();
@@ -201,7 +211,7 @@ impl OrbitTree {
         self.orbit_map.get(name).cloned().map(checksum_node)
     }
 
-    fn checksum(&self) -> Option<usize> {
+    pub fn checksum(&self) -> Option<usize> {
         if self.orbit_map.is_empty() {
             return None;
         }
@@ -235,7 +245,7 @@ impl OrbitTree {
         last
     }
 
-    fn find_minimal_orbital_transfers(&self, name1: &str, name2: &str) -> Option<usize> {
+    pub fn find_minimal_orbital_transfers(&self, name1: &str, name2: &str) -> Option<usize> {
         let left = self.orbit_map.get(name1)?;
         let mut left_chain = vec![String::from(name1)];
         left_chain.extend(OrbitIterator(Rc::clone(left)));
@@ -292,8 +302,8 @@ fn parse_line(line: String) -> Orbit {
     }
 }
 
-fn parse_input(reader: impl BufRead) -> Result<Vec<Orbit>> {
-    let orbits: Vec<Orbit> = reader
+pub fn parse_input(input: &str) -> Result<Vec<Orbit>> {
+    let orbits: Vec<Orbit> = io::Cursor::new(input)
         .lines()
         .filter(|r| r.is_err() || !r.as_ref().unwrap().is_empty())
         .map(|r| r.map(parse_line).map_err(anyhow::Error::from))
@@ -302,31 +312,10 @@ fn parse_input(reader: impl BufRead) -> Result<Vec<Orbit>> {
     Ok(orbits)
 }
 
-fn main() -> Result<()> {
-    let in_fd = get_input_reader();
-    let orbits = parse_input(in_fd)?;
-
-    let tree = OrbitTree::from_orbits(orbits);
-
-    let checksum = tree.checksum().expect("orbit tree to have a checksum");
-
-    println!("Orbital checksum: {}", checksum);
-
-    let minimal_transfers = tree.find_minimal_orbital_transfers("YOU", "SAN");
-
-    println!(
-        "Transfers to move between YOU and SAN: {:?}",
-        minimal_transfers
-    );
-
-    Ok(())
-}
-
 #[cfg(test)]
 mod tests {
     use super::{parse_input, OrbitTree};
     use pretty_assertions::assert_eq;
-    use std::io;
 
     const PUZ_6_PART_1_EXAMPLE: &str = "
         COM)B
@@ -342,7 +331,7 @@ mod tests {
         K)L";
 
     fn get_part_1_tree() -> OrbitTree {
-        let orbits = parse_input(&mut io::Cursor::new(PUZ_6_PART_1_EXAMPLE)).unwrap();
+        let orbits = parse_input(PUZ_6_PART_1_EXAMPLE).unwrap();
 
         OrbitTree::from_orbits(orbits)
     }
@@ -381,8 +370,7 @@ mod tests {
 
     #[test]
     fn verify_part_1() {
-        let orbits =
-            parse_input(&mut io::Cursor::new(include_str!("../../inputs/input-06"))).unwrap();
+        let orbits = parse_input(super::PUZZLE_INPUT).unwrap();
 
         let actual = OrbitTree::from_orbits(orbits).checksum().unwrap();
         const EXPECTED: usize = 453028;
@@ -406,7 +394,7 @@ mod tests {
         I)SAN";
 
     fn get_part_2_tree() -> OrbitTree {
-        let orbits = parse_input(&mut io::Cursor::new(PUZ_6_PART_2_EXAMPLE)).unwrap();
+        let orbits = parse_input(PUZ_6_PART_2_EXAMPLE).unwrap();
 
         OrbitTree::from_orbits(orbits)
     }
@@ -429,8 +417,7 @@ mod tests {
 
     #[test]
     fn find_minimal_orbital_transfers_part_2() {
-        let orbits =
-            parse_input(&mut io::Cursor::new(include_str!("../../inputs/input-06"))).unwrap();
+        let orbits = parse_input(super::PUZZLE_INPUT).unwrap();
 
         let actual = OrbitTree::from_orbits(orbits).find_minimal_orbital_transfers("YOU", "SAN");
         let expected = Some(562);

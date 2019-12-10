@@ -1,6 +1,13 @@
 use std::{env, fs, io, path::PathBuf};
 
+pub mod day01;
+pub mod day02;
+pub mod day03;
+pub mod day04;
+pub mod day05;
+pub mod day06;
 pub mod day07;
+pub mod day08;
 pub mod day09;
 
 fn get_input_filename() -> Option<PathBuf> {
@@ -23,7 +30,10 @@ pub fn get_input_reader() -> Box<dyn io::BufRead> {
     }
 }
 
-pub fn run_intcode_program_single_in_single_out(program: intcode::Memory, input: intcode::Word) -> Result<intcode::Word, intcode::ExecutionError> {
+pub fn run_intcode_program_single_in(
+    program: intcode::Memory,
+    input: intcode::Word,
+) -> Result<Vec<intcode::Word>, intcode::ExecutionError> {
     let mut exe = intcode::Executable::from(program);
 
     exe.single_input(input);
@@ -31,5 +41,14 @@ pub fn run_intcode_program_single_in_single_out(program: intcode::Memory, input:
 
     exe.execute()?;
 
-    Ok(drain.to_vec()[0])
+    Ok(drain.to_vec())
+}
+
+pub fn run_intcode_program_single_in_single_out(
+    program: intcode::Memory,
+    input: intcode::Word,
+) -> Result<intcode::Word, intcode::ExecutionError> {
+    let results = run_intcode_program_single_in(program, input)?;
+
+    Ok(results.last().copied().expect("one output"))
 }

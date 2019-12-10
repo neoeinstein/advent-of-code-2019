@@ -68,14 +68,13 @@
 //! (Calculate the fuel requirements for each module separately, then add them
 //! all up at the end.)
 
-use advent_of_code_2019::get_input_reader;
-use std::io::BufRead;
+use std::io::{self, BufRead};
 
-fn calculate_fuel(mass: usize) -> usize {
+pub fn calculate_fuel(mass: usize) -> usize {
     (mass / 3).saturating_sub(2)
 }
 
-fn calculate_module_fuel(mut mass: usize) -> usize {
+pub fn calculate_module_fuel(mut mass: usize) -> usize {
     let mut total_fuel = 0;
 
     while mass > 0 {
@@ -86,27 +85,16 @@ fn calculate_module_fuel(mut mass: usize) -> usize {
     total_fuel
 }
 
-fn parse_input() -> Vec<usize> {
-    let in_fd = get_input_reader();
+pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-01");
+
+pub fn parse_input() -> Vec<usize> {
+    let in_fd = io::Cursor::new(PUZZLE_INPUT);
     in_fd
         .lines()
         .map(|l| l.expect("error reading line"))
         .filter(|l| !l.is_empty())
         .map(|mass_str| mass_str.parse().expect("data must be a valid integer"))
         .collect()
-}
-
-fn main() {
-    let calc = if cfg!(feature = "part-1") {
-        calculate_fuel
-    } else {
-        calculate_module_fuel
-    };
-
-    let input = parse_input();
-    let total_fuel_requirement: usize = input.into_iter().map(calc).sum();
-
-    println!("{}", total_fuel_requirement);
 }
 
 #[cfg(test)]
