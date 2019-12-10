@@ -1,65 +1,56 @@
 use super::{
-    decode::{
-        self, decode, BinaryOperands, Decoded, InputOperands, JumpIfOperands, OutputOperands,
-    },
-    error,
+    decode::{decode, BinaryOperands, Decoded, InputOperands, JumpIfOperands, OutputOperands},
+    execute::*,
     ops::Instruction,
-    Address, Buffer, Memory, Relative, Word,
+    Address, Memory, Relative, Word,
 };
-use snafu::{ResultExt, Snafu};
+use snafu::ResultExt;
 use std::{
     convert::TryFrom,
-    fmt, ops,
-    sync::{
-        atomic::{AtomicUsize, Ordering},
-        mpsc::{channel, Receiver, RecvError, SendError, Sender},
-    },
+    ops,
+    sync::atomic::{AtomicUsize, Ordering},
 };
-use thiserror::Error;
+use tokio::sync::mpsc::{channel, Receiver, Sender};
 
-/// A counter which keeps track of the currently executing instruction
-/// in the Intcode executor
-#[derive(Clone, Copy, Debug)]
-pub struct ProgramCounter(usize);
-
-impl fmt::Display for ProgramCounter {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        self.0.fmt(f)
-    }
+pub struct AsyncBuffer {
+    last_output: Option<Word>,
+    rx: Receiver<Word>,
+    tx: Sender<Word>,
 }
 
-impl Default for ProgramCounter {
-    fn default() -> Self {
-        Self::START
-    }
-}
+impl AsyncBuffer {
+    pub fn between(source: &mut AsyncExecutable, target: &mut AsyncExecutable) -> Self {
+        let (tx, buf_out) = channel(1);
+        let (buf_in, rx) = channel(1);
 
-impl ProgramCounter {
-    /// A program counter initialized to start from the first address in memory
-    pub const START: Self = Self(0);
+        source.pipe_outputs_to(buf_in);
+        target.pipe_inputs_from(buf_out);
 
-    #[inline]
-    /// Obtains the address of parameter `idx` for the current instruction
-    pub const fn param(self, idx: u8) -> Address {
-        Address::new(self.0 + (idx as usize) + 1)
-    }
-
-    #[inline]
-    /// Advances the program counter by the specified offset
-    pub fn advance(&mut self, cnt: usize) {
-        self.0 += cnt;
+        AsyncBuffer {
+            last_output: None,
+            rx,
+            tx,
+        }
     }
 
-    #[inline]
-    /// Jumps to the specified address
-    pub fn jump(&mut self, address: Address) {
-        self.0 = address.value()
+    pub fn injector(&self) -> Sender<Word> {
+        self.tx.clone()
     }
 
-    #[inline]
-    /// Gets the address of the currently executing instruction
-    pub const fn address(self) -> Address {
-        Address::new(self.0)
+    pub async fn execute(mut self) -> Option<Word> {
+        loop {
+            let value = match self.rx.recv().await {
+                Some(v) => v,
+                None => break,
+            };
+
+            self.last_output = Some(value);
+
+            // Ignore if the listener has stopped listening
+            let _ = self.tx.send(value).await;
+        }
+
+        self.last_output
     }
 }
 
@@ -70,7 +61,7 @@ static NEXT_EXECUTABLE_ID: AtomicUsize = AtomicUsize::new(0);
 /// Executes programs, keeps track of current position, and relays input and
 /// output during execution.
 #[derive(Debug)]
-pub struct Executable {
+pub struct AsyncExecutable {
     id: usize,
     memory: Memory,
     pc: ProgramCounter,
@@ -80,36 +71,36 @@ pub struct Executable {
     steps: usize,
 }
 
-impl From<Memory> for Executable {
+impl From<Memory> for AsyncExecutable {
     fn from(memory: Memory) -> Self {
         Self {
             id: NEXT_EXECUTABLE_ID.fetch_add(1, Ordering::AcqRel),
             memory,
             pc: ProgramCounter::START,
             rel: Address::new(0),
-            input: channel().1,
-            output: channel().0,
+            input: channel(1).1,
+            output: channel(1).0,
             steps: 0,
         }
     }
 }
 
-impl Executable {
+impl AsyncExecutable {
     pub fn single_input(&mut self, value: Word) {
-        let (tx, rx) = channel();
+        let (mut tx, rx) = channel(1);
         self.input = rx;
-        tx.send(value).unwrap();
+        tokio::spawn(async move { tx.send(value).await });
     }
 
-    pub fn pipe_to(&mut self, target: &mut Executable) -> Sender<Word> {
-        let (tx, rx) = channel();
+    pub fn pipe_to(&mut self, target: &mut AsyncExecutable) -> Sender<Word> {
+        let (tx, rx) = channel(1);
         self.output = tx.clone();
         target.input = rx;
         tx
     }
 
-    pub fn buffer_to(&mut self, target: &mut Executable) -> Buffer {
-        Buffer::between(self, target)
+    pub fn buffer_to(&mut self, target: &mut AsyncExecutable) -> AsyncBuffer {
+        AsyncBuffer::between(self, target)
     }
 
     pub(super) fn pipe_outputs_to(&mut self, target: Sender<Word>) {
@@ -120,10 +111,10 @@ impl Executable {
         self.input = source;
     }
 
-    pub fn drain(&mut self) -> OutputDrain {
-        let (tx, rx) = channel();
+    pub fn drain(&mut self) -> AsyncOutputDrain {
+        let (tx, rx) = channel(1);
         self.pipe_outputs_to(tx);
-        OutputDrain(rx)
+        AsyncOutputDrain(rx)
     }
 
     fn read_instruction(&self) -> Result<Decoded, ExecutionErrorInner> {
@@ -137,30 +128,26 @@ impl Executable {
         decode(i, self.pc, &self.memory)
     }
 
-    pub fn execute_in_thread(self) -> std::thread::JoinHandle<Result<Memory, ExecutionError>> {
-        std::thread::spawn(move || self.execute())
-    }
-
     /// Executes the Intcode program in memory until a halt instruction is
     /// encountered or an invalid operation causes termination due to an
     /// `ExecutionError`
-    pub fn execute(mut self) -> Result<Memory, ExecutionError> {
-        while self.step()? {}
+    pub async fn execute(mut self) -> Result<Memory, ExecutionError> {
+        while self.step().await? {}
 
         Ok(self.memory)
     }
 
-    pub fn step(&mut self) -> Result<bool, ExecutionError> {
-        Ok(self.execute_op(self.read_instruction()?)?)
+    pub async fn step(&mut self) -> Result<bool, ExecutionError> {
+        Ok(self.execute_op(self.read_instruction()?).await?)
     }
 
-    fn execute_op(&mut self, op: Decoded) -> Result<bool, ExecutionErrorInner> {
+    async fn execute_op(&mut self, op: Decoded) -> Result<bool, ExecutionErrorInner> {
         self.steps += 1;
         match op {
             Decoded::Add(params) => self.execute_binary_op(params, ops::Add::add),
             Decoded::Mul(params) => self.execute_binary_op(params, ops::Mul::mul),
-            Decoded::Input(params) => self.execute_input(params),
-            Decoded::Output(params) => self.execute_output(params),
+            Decoded::Input(params) => self.execute_input(params).await,
+            Decoded::Output(params) => self.execute_output(params).await,
             Decoded::JumpNonZero(params) => self.execute_jump_if(params, true),
             Decoded::JumpZero(params) => self.execute_jump_if(params, false),
             Decoded::LessThan(params) => self.execute_cmp(params, Word::lt),
@@ -202,11 +189,15 @@ impl Executable {
         Ok(())
     }
 
-    fn execute_input(&mut self, operands: InputOperands) -> Result<(), ExecutionErrorInner> {
+    async fn execute_input(&mut self, operands: InputOperands) -> Result<(), ExecutionErrorInner> {
         let value = self
             .input
             .recv()
-            .context(UnexpectedEndOfInput { pc: self.pc })?;
+            .await
+            .ok_or(ExecutionErrorInner::UnexpectedEndOfInput {
+                source: std::sync::mpsc::RecvError,
+                pc: self.pc,
+            })?;
 
         log::trace!("{}@{}: {} =>", self.id, self.pc, value);
 
@@ -216,7 +207,10 @@ impl Executable {
         Ok(())
     }
 
-    fn execute_output(&mut self, operands: OutputOperands) -> Result<(), ExecutionErrorInner> {
+    async fn execute_output(
+        &mut self,
+        operands: OutputOperands,
+    ) -> Result<(), ExecutionErrorInner> {
         let value = operands
             .source
             .load(self.rel, &self.memory)
@@ -226,7 +220,11 @@ impl Executable {
 
         self.output
             .send(value)
-            .context(OutputPipeClosed { pc: self.pc })?;
+            .await
+            .map_err(|e| ExecutionErrorInner::OutputPipeClosed {
+                source: std::sync::mpsc::SendError(e.0),
+                pc: self.pc,
+            })?;
         self.pc.advance(2);
         Ok(())
     }
@@ -306,69 +304,24 @@ impl Executable {
     }
 }
 
-pub struct OutputDrain(Receiver<Word>);
+pub struct AsyncOutputDrain(Receiver<Word>);
 
-impl OutputDrain {
+impl AsyncOutputDrain {
     /// Blocks until the executable has halted
-    pub fn to_vec(&self) -> Vec<Word> {
-        let mut outputs = Vec::new();
+    pub fn to_vec(
+        mut self,
+    ) -> impl std::future::Future<Output = Result<Vec<Word>, tokio::task::JoinError>> {
+        tokio::spawn(async move {
+            let mut outputs = Vec::new();
 
-        loop {
-            match self.0.recv() {
-                Ok(x) => outputs.push(x),
-                Err(_) => return outputs,
+            loop {
+                match self.0.recv().await {
+                    Some(x) => outputs.push(x),
+                    None => break,
+                }
             }
-        }
+
+            outputs
+        })
     }
-}
-
-/// An error during execution
-///
-/// Possible errors include:
-///
-/// * Execution of an invalid instruction
-/// * Access to an address beyond the memory limit
-/// * Attempt to interpret a negative value as an address
-#[derive(Error, Debug)]
-#[error("{0}")]
-pub struct ExecutionError(#[from] ExecutionErrorInner);
-
-#[derive(Snafu, Debug)]
-#[snafu(visibility(pub(crate)))]
-pub(crate) enum ExecutionErrorInner {
-    #[snafu(display("invalid instruction; pc = {}", pc))]
-    InvalidInstruction {
-        source: super::ops::InvalidInstruction,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("attempted out of bounds access; pc = {}", pc))]
-    OutOfBoundsAccess {
-        source: error::OutOfBoundsAccess,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("unexpected end of program; pc = {}", pc))]
-    UnexpectedEndOfProgram {
-        source: error::OutOfBoundsAccess,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("invalid address; pc = {}", pc))]
-    InvalidAddress {
-        source: error::InvalidAddress,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("unable to decode instruction; pc = {}", pc))]
-    DecodeError {
-        source: decode::DecodeError,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("unexpected end of input; pc = {}", pc))]
-    UnexpectedEndOfInput {
-        source: RecvError,
-        pc: ProgramCounter,
-    },
-    #[snafu(display("attempted to write on a closed output pipe; pc = {}", pc))]
-    OutputPipeClosed {
-        source: SendError<Word>,
-        pc: ProgramCounter,
-    },
 }

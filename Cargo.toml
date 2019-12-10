@@ -10,8 +10,9 @@ edition = "2018"
 anyhow = "1"
 env_logger = "0.7"
 intcode = { path = "./intcode" }
-log = "0.4"
+log = { version = "0.4", features = [ "release_max_level_info" ] }
 structopt = "*"
+tokio = { version = "0.2", features = [ "rt-core", "sync" ] }
 
 [dev-dependencies]
 criterion = "0.3"
@@ -26,6 +27,6 @@ codegen-units = 1
 lto = true
 
 [features]
-part-1 = []
+threaded-async = [ "tokio/rt-threaded" ]
 
 [workspace]

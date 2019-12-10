@@ -93,7 +93,6 @@ pub fn run_boost(program: intcode::Memory) -> Result<intcode::Word, intcode::Exe
     super::run_intcode_program_single_in_single_out(program, 2)
 }
 
-
 pub fn run() -> Result<()> {
     let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
 

@@ -288,7 +288,6 @@ impl<'a> DoubleEndedIterator for LayerIterator<'a> {
 
 impl<'a> ExactSizeIterator for LayerIterator<'a> {}
 
-
 pub fn run() -> anyhow::Result<()> {
     let image = Image::from_bytes(PUZZLE_INPUT.trim(), PUZZLE_DIMENSIONS);
 

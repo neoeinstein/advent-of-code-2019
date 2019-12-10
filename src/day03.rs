@@ -410,7 +410,6 @@ pub fn run() {
     println!("Nearest intersection by wire delay: {:?}", wire_delay);
 }
 
-
 #[cfg(test)]
 mod tests {
     use super::{CandidatePoint, Wire};

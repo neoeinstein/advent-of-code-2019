@@ -10,6 +10,7 @@ edition = "2018"
 arrayvec = "0.5"
 log = "0.4"
 thiserror = "1"
+tokio = { version = "0.2", features = [ "rt-core", "macros", "sync" ] }
 snafu = "0.6"
 static_assertions = "1.1"
 

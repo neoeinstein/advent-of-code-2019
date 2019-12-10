@@ -20,9 +20,7 @@ mod day02 {
         let memory = intcode::Memory::from_str(day02::PUZZLE_INPUT).unwrap();
 
         c.bench_function("day02::part_2", |b| {
-            b.iter(|| {
-                day02::search_for_noun_and_verb(black_box(memory.clone()), black_box(19_690_720))
-            })
+            b.iter(|| day02::search_for_noun_and_verb(black_box(memory.clone()), black_box(0)))
         });
     }
 
@@ -57,19 +55,75 @@ mod day07 {
     use criterion::{black_box, criterion_group, Criterion};
 
     pub fn part_1(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap();
+        let mut group = c.benchmark_group("day07::part_1");
+        let memory = std::sync::Arc::new(intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap());
 
-        c.bench_function("day07::part_1", |b| {
+        group.bench_function("sync", |b| {
             b.iter(|| day07::find_best_phase_sequence(black_box(&memory)))
         });
+
+        let mut runtime = tokio::runtime::Builder::new()
+            .basic_scheduler()
+            .build()
+            .expect("initialize runtime");
+        group.bench_function("single-async", |b| {
+            b.iter(|| {
+                runtime.block_on(day07::find_best_phase_sequence_async(black_box(
+                    std::sync::Arc::clone(&memory),
+                )))
+            })
+        });
+
+        #[cfg(feature = "threaded-async")]
+        {
+            let mut threaded_runtime = tokio::runtime::Builder::new()
+                .threaded_scheduler()
+                .build()
+                .expect("initialize runtime");
+            group.bench_function("threaded-async", |b| {
+                b.iter(|| {
+                    threaded_runtime.block_on(day07::find_best_phase_sequence_async(black_box(
+                        std::sync::Arc::clone(&memory),
+                    )))
+                })
+            });
+        }
     }
 
     pub fn part_2(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap();
+        let mut group = c.benchmark_group("day07::part_2");
+        let memory = std::sync::Arc::new(intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap());
 
-        c.bench_function("day07::part_2", |b| {
+        group.bench_function("sync", |b| {
             b.iter(|| day07::find_best_phase_sequence_with_feedback(black_box(&memory)))
         });
+
+        let mut runtime = tokio::runtime::Builder::new()
+            .basic_scheduler()
+            .build()
+            .expect("initialize runtime");
+        group.bench_function("single-async", |b| {
+            b.iter(|| {
+                runtime.block_on(day07::find_best_phase_sequence_with_feedback_async(
+                    black_box(std::sync::Arc::clone(&memory)),
+                ))
+            })
+        });
+
+        #[cfg(feature = "threaded-async")]
+        {
+            let mut threaded_runtime = tokio::runtime::Builder::new()
+                .threaded_scheduler()
+                .build()
+                .expect("initialize runtime");
+            group.bench_function("threaded-async", |b| {
+                b.iter(|| {
+                    threaded_runtime.block_on(day07::find_best_phase_sequence_with_feedback_async(
+                        black_box(std::sync::Arc::clone(&memory)),
+                    ))
+                })
+            });
+        }
     }
 
     criterion_group!(solutions, part_1, part_2);

@@ -1,6 +1,6 @@
+use advent_of_code_2019::*;
 use anyhow::Result;
 use structopt::StructOpt;
-use advent_of_code_2019::*;
 
 #[derive(StructOpt, Debug)]
 struct Opt {
@@ -19,7 +19,10 @@ fn main() -> Result<()> {
         4 => day04::run(),
         5 => day05::run()?,
         6 => day06::run()?,
-        7 => day07::run()?,
+        7 => {
+            //day07::run()?
+            tokio::runtime::Runtime::new()?.block_on(day07::run_async())?
+        }
         8 => day08::run()?,
         _ => day09::run()?,
     }

@@ -102,11 +102,7 @@ pub fn run() {
     let fuel_requirement: usize = input.iter().copied().map(calculate_fuel).sum();
     println!("Fuel required: {}", fuel_requirement);
 
-    let total_fuel_requirement: usize = input
-        .iter()
-        .copied()
-        .map(calculate_module_fuel)
-        .sum();
+    let total_fuel_requirement: usize = input.iter().copied().map(calculate_module_fuel).sum();
     println!(
         "Total fuel required (including fuel weight): {}",
         total_fuel_requirement

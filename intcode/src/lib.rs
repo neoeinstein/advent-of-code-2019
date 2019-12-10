@@ -16,6 +16,7 @@
 //! ```
 
 mod address;
+mod async_execute;
 mod buffer;
 mod decode;
 mod error;
@@ -25,6 +26,7 @@ mod ops;
 
 pub use address::Address;
 use address::Relative;
+pub use async_execute::AsyncExecutable;
 pub use buffer::Buffer;
 use execute::ProgramCounter;
 pub use execute::{Executable, ExecutionError};
@@ -295,5 +297,34 @@ mod tests {
             109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
         ];
         run_program_test(QUINE, 0, EXPECTED)
+    }
+
+    async fn run_program_test_async(
+        program_data: &str,
+        input: Word,
+        expected: &[Word],
+    ) -> Result<()> {
+        crate::init_logging();
+        let memory = Memory::from_str(program_data)?;
+
+        let mut exe = super::AsyncExecutable::from(memory);
+
+        exe.single_input(input);
+        let drain = exe.drain().to_vec();
+
+        exe.execute().await?;
+
+        assert_eq!(expected, &drain.await?[..]);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn quine_async() -> Result<()> {
+        const QUINE: &str = "109,1,204,-1,1001,100,1,100,1008,100,16,101,1006,101,0,99";
+        const EXPECTED: &[Word] = &[
+            109, 1, 204, -1, 1001, 100, 1, 100, 1008, 100, 16, 101, 1006, 101, 0, 99,
+        ];
+        run_program_test_async(QUINE, 0, EXPECTED).await
     }
 }

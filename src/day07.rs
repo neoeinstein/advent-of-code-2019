@@ -301,6 +301,7 @@
 //! loop. What is the highest signal that can be sent to the thrusters?
 
 use anyhow::Result;
+use std::sync::Arc;
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-07");
 
@@ -388,15 +389,116 @@ pub fn find_best_phase_sequence_with_feedback(
     permute(memory, [5, 6, 7, 8, 9])
 }
 
+async fn run_amplifier_sequence_async(
+    memory: &intcode::Memory,
+    phase_sequence: [intcode::Word; 5],
+) -> Result<intcode::Word> {
+    let mut amp_a = intcode::AsyncExecutable::from(memory.clone());
+    let mut amp_b = intcode::AsyncExecutable::from(memory.clone());
+    let mut amp_c = intcode::AsyncExecutable::from(memory.clone());
+    let mut amp_d = intcode::AsyncExecutable::from(memory.clone());
+    let mut amp_e = intcode::AsyncExecutable::from(memory.clone());
+
+    let buffer = amp_e.buffer_to(&mut amp_a);
+    let mut a_in = buffer.injector();
+    let mut a_in_2 = a_in.clone();
+    let mut b_in = amp_a.pipe_to(&mut amp_b);
+    let mut c_in = amp_b.pipe_to(&mut amp_c);
+    let mut d_in = amp_c.pipe_to(&mut amp_d);
+    let mut e_in = amp_d.pipe_to(&mut amp_e);
+
+    let exec_a = tokio::spawn(amp_a.execute());
+    let exec_b = tokio::spawn(amp_b.execute());
+    let exec_c = tokio::spawn(amp_c.execute());
+    let exec_d = tokio::spawn(amp_d.execute());
+    let exec_e = tokio::spawn(amp_e.execute());
+    let exec_buf = tokio::spawn(buffer.execute());
+
+    tokio::spawn(async move { e_in.send(phase_sequence[4]).await }).await??;
+    tokio::spawn(async move { d_in.send(phase_sequence[3]).await }).await??;
+    tokio::spawn(async move { c_in.send(phase_sequence[2]).await }).await??;
+    tokio::spawn(async move { b_in.send(phase_sequence[1]).await }).await??;
+    tokio::spawn(async move { a_in.send(phase_sequence[0]).await }).await??;
+    tokio::spawn(async move { a_in_2.send(0).await }).await??;
+
+    exec_a.await??;
+    exec_b.await??;
+    exec_c.await??;
+    exec_d.await??;
+    exec_e.await??;
+    let result = exec_buf.await?;
+
+    result.ok_or(anyhow::anyhow!(
+        "amplifier sequence did not produce a value"
+    ))
+}
+
+pub async fn permute_async(
+    memory: Arc<intcode::Memory>,
+    phase_sequence: [intcode::Word; 5],
+) -> Result<([intcode::Word; 5], intcode::Word)> {
+    permute_impl_async(memory, phase_sequence, 0).await
+}
+
+fn permute_impl_async(
+    memory: Arc<intcode::Memory>,
+    mut phase_sequence: [intcode::Word; 5],
+    start: usize,
+) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<([intcode::Word; 5], intcode::Word)>>>>
+{
+    Box::pin(async move {
+        if start == 5 {
+            let result = run_amplifier_sequence_async(&memory, phase_sequence).await?;
+            log::debug!("With sequence {:?}, gives {}", phase_sequence, result);
+            Ok((phase_sequence, result))
+        } else {
+            let mut best_sequence = phase_sequence;
+            let mut max = 0;
+            for i in start..=4 {
+                phase_sequence.swap(i, start);
+                let (best_seq, seq_max) =
+                    permute_impl_async(Arc::clone(&memory), phase_sequence, start + 1).await?;
+                if seq_max > max {
+                    best_sequence = best_seq;
+                    max = seq_max;
+                }
+            }
+            Ok((best_sequence, max))
+        }
+    })
+}
+
+pub async fn find_best_phase_sequence_async(
+    memory: Arc<intcode::Memory>,
+) -> Result<([intcode::Word; 5], intcode::Word)> {
+    permute_async(memory, [0, 1, 2, 3, 4]).await
+}
+
+pub async fn find_best_phase_sequence_with_feedback_async(
+    memory: Arc<intcode::Memory>,
+) -> Result<([intcode::Word; 5], intcode::Word)> {
+    permute_async(memory, [5, 6, 7, 8, 9]).await
+}
+
 pub fn run() -> Result<()> {
     let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
 
     let (best_sequence, max) = find_best_phase_sequence(&memory)?;
-
     println!("Best sequence: {:?}, end value = {}", best_sequence, max);
 
     let (best_sequence, max) = find_best_phase_sequence_with_feedback(&memory)?;
+    println!("Best sequence: {:?}, end value = {}", best_sequence, max);
 
+    Ok(())
+}
+
+pub async fn run_async() -> Result<()> {
+    let memory = Arc::new(intcode::Memory::from_str(PUZZLE_INPUT)?);
+
+    let (best_sequence, max) = find_best_phase_sequence_async(Arc::clone(&memory)).await?;
+    println!("Best sequence: {:?}, end value = {}", best_sequence, max);
+
+    let (best_sequence, max) = find_best_phase_sequence_with_feedback_async(memory).await?;
     println!("Best sequence: {:?}, end value = {}", best_sequence, max);
 
     Ok(())
@@ -490,6 +592,24 @@ mod tests {
         let memory = intcode::Memory::from_str(PROGRAM)?;
 
         let actual = run_amplifier_sequence(&memory, PHASES)?;
+        const EXPECTED: intcode::Word = 18216;
+
+        assert_eq!(EXPECTED, actual);
+
+        Ok(())
+    }
+
+    #[tokio::test]
+    async fn part_2_example_2_async() -> Result<()> {
+        init_logging();
+        const PROGRAM: &str = "3,52,1001,52,-5,52,3,53,1,52,56,54,1007,54,5,55,1005,55,26,1001,54,\
+                               -5,54,1105,1,12,1,53,54,53,1008,54,0,55,1001,55,1,55,2,53,55,53,4,\
+                               53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10";
+        const PHASES: [intcode::Word; 5] = [9, 7, 8, 5, 6];
+
+        let memory = intcode::Memory::from_str(PROGRAM)?;
+
+        let actual = super::run_amplifier_sequence_async(&memory, PHASES).await?;
         const EXPECTED: intcode::Word = 18216;
 
         assert_eq!(EXPECTED, actual);
