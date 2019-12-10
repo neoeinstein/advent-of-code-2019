@@ -9,6 +9,7 @@ pub mod day06;
 pub mod day07;
 pub mod day08;
 pub mod day09;
+pub mod day10;
 
 fn get_input_filename() -> Option<PathBuf> {
     let in_file = env::args().nth(1)?;

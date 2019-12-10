@@ -24,7 +24,8 @@ fn main() -> Result<()> {
             tokio::runtime::Runtime::new()?.block_on(day07::run_async())?
         }
         8 => day08::run()?,
-        _ => day09::run()?,
+        9 => day09::run()?,
+        _ => day10::run()?,
     }
 
     Ok(())
