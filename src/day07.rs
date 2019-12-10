@@ -388,6 +388,20 @@ pub fn find_best_phase_sequence_with_feedback(
     permute(memory, [5, 6, 7, 8, 9])
 }
 
+pub fn run() -> Result<()> {
+    let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
+
+    let (best_sequence, max) = find_best_phase_sequence(&memory)?;
+
+    println!("Best sequence: {:?}, end value = {}", best_sequence, max);
+
+    let (best_sequence, max) = find_best_phase_sequence_with_feedback(&memory)?;
+
+    println!("Best sequence: {:?}, end value = {}", best_sequence, max);
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::run_amplifier_sequence;

@@ -43,8 +43,8 @@ use std::ops;
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-04");
 
-pub fn parse_input() -> ops::RangeInclusive<u32> {
-    let values: Vec<u32> = PUZZLE_INPUT
+pub fn parse_input(input: &str) -> ops::RangeInclusive<u32> {
+    let values: Vec<u32> = input
         .split('-')
         .filter(|op| !op.is_empty())
         .map(|op| op.trim().parse().expect("data must be a valid integer"))
@@ -141,4 +141,14 @@ pub fn find_valid_passwords_part_2(range: ops::RangeInclusive<u32>) -> usize {
         .filter(|&x| digits_are_in_increasing_order(x))
         .filter(|&x| contains_a_proper_pair(x))
         .count()
+}
+
+pub fn run() {
+    let range = parse_input(PUZZLE_INPUT);
+
+    let result = find_valid_passwords_part_1(range.clone());
+    println!("Valid passwords: {}", result);
+
+    let result = find_valid_passwords_part_2(range);
+    println!("Valid passwords (part 2): {}", result);
 }

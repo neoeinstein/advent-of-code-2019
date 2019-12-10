@@ -288,6 +288,31 @@ impl<'a> DoubleEndedIterator for LayerIterator<'a> {
 
 impl<'a> ExactSizeIterator for LayerIterator<'a> {}
 
+
+pub fn run() -> anyhow::Result<()> {
+    let image = Image::from_bytes(PUZZLE_INPUT.trim(), PUZZLE_DIMENSIONS);
+
+    let (layer_num, checksum) = image.checksum();
+
+    println!("Checksum (layer {}): {}", layer_num, checksum,);
+
+    if log::log_enabled!(log::Level::Debug) {
+        for (i, layer) in image.layers().enumerate() {
+            log::debug!("Layer {}:\n{}", i, layer);
+        }
+    }
+
+    log::debug!("Resolving… [from background forward]");
+    let resolved = image.resolve_back();
+    println!("Resolved (back to front):\n{}", resolved);
+
+    log::debug!("Resolving… [from foreground backward]");
+    let resolved = image.resolve();
+    println!("Resolved (front to back):\n{}", resolved);
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::Image;

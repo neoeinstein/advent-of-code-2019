@@ -312,6 +312,25 @@ pub fn parse_input(input: &str) -> Result<Vec<Orbit>> {
     Ok(orbits)
 }
 
+pub fn run() -> Result<()> {
+    let orbits = parse_input(PUZZLE_INPUT)?;
+
+    let tree = OrbitTree::from_orbits(orbits);
+
+    let checksum = tree.checksum().expect("orbit tree to have a checksum");
+
+    println!("Orbital checksum: {}", checksum);
+
+    let minimal_transfers = tree.find_minimal_orbital_transfers("YOU", "SAN");
+
+    println!(
+        "Transfers to move between YOU and SAN: {:?}",
+        minimal_transfers
+    );
+
+    Ok(())
+}
+
 #[cfg(test)]
 mod tests {
     use super::{parse_input, OrbitTree};

@@ -11,6 +11,7 @@ anyhow = "1"
 env_logger = "0.7"
 intcode = { path = "./intcode" }
 log = "0.4"
+structopt = "*"
 
 [dev-dependencies]
 criterion = "0.3"

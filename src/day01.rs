@@ -87,14 +87,30 @@ pub fn calculate_module_fuel(mut mass: usize) -> usize {
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-01");
 
-pub fn parse_input() -> Vec<usize> {
-    let in_fd = io::Cursor::new(PUZZLE_INPUT);
-    in_fd
+fn parse_input(data: &str) -> Vec<usize> {
+    io::Cursor::new(data)
         .lines()
         .map(|l| l.expect("error reading line"))
         .filter(|l| !l.is_empty())
         .map(|mass_str| mass_str.parse().expect("data must be a valid integer"))
         .collect()
+}
+
+pub fn run() {
+    let input = parse_input(PUZZLE_INPUT);
+
+    let fuel_requirement: usize = input.iter().copied().map(calculate_fuel).sum();
+    println!("Fuel required: {}", fuel_requirement);
+
+    let total_fuel_requirement: usize = input
+        .iter()
+        .copied()
+        .map(calculate_module_fuel)
+        .sum();
+    println!(
+        "Total fuel required (including fuel weight): {}",
+        total_fuel_requirement
+    );
 }
 
 #[cfg(test)]

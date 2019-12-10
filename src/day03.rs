@@ -133,9 +133,8 @@ use std::{
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-03");
 
-pub fn parse_input() -> (Wire, Wire) {
-    let in_fd = io::Cursor::new(PUZZLE_INPUT);
-    let mut lines = in_fd
+pub fn parse_input(input: &str) -> (Wire, Wire) {
+    let mut lines = io::Cursor::new(input)
         .lines()
         .map(|l| l.expect("error reading line"))
         .filter(|l| !l.is_empty())
@@ -392,6 +391,25 @@ pub fn find_nearest_intersection(
         .filter_map(|seg| right.find_intersections(seg, weight_function))
         .min()
 }
+
+pub fn run() {
+    let wires = parse_input(PUZZLE_INPUT);
+
+    let manhattan = find_nearest_intersection(
+        &wires.0,
+        &wires.1,
+        CandidatePoint::manhattan_distance_from_origin,
+    );
+    println!(
+        "Nearest intersection by manhattan distance: {:?}",
+        manhattan
+    );
+
+    let wire_delay =
+        find_nearest_intersection(&wires.0, &wires.1, CandidatePoint::wire_delay_to_point);
+    println!("Nearest intersection by wire delay: {:?}", wire_delay);
+}
+
 
 #[cfg(test)]
 mod tests {
