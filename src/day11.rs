@@ -113,7 +113,7 @@ use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-11");
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum PanelColor {
     Black,
     White,
@@ -256,6 +256,7 @@ impl ops::AddAssign<Orientation> for Position {
 
 #[derive(Debug)]
 struct EmergencyHullPaintingRobot {
+    default_panel: PanelColor,
     current: Position,
     orientation: Orientation,
     visited: HashMap<Position, PanelColor>,
@@ -264,6 +265,7 @@ struct EmergencyHullPaintingRobot {
 impl Default for EmergencyHullPaintingRobot {
     fn default() -> Self {
         Self {
+            default_panel: PanelColor::default(),
             current: Position::ORIGIN,
             orientation: Orientation::North,
             visited: HashMap::new(),
@@ -278,7 +280,7 @@ impl EmergencyHullPaintingRobot {
         mut commands: Receiver<intcode::Word>,
     ) -> anyhow::Result<()> {
         loop {
-            let current = self.visited.entry(self.current).or_default();
+            let current = self.visited.entry(self.current).or_insert(self.default_panel);
 
             if camera.send(intcode::Word::from(*current)).await.is_err() {
                 log::info!("camera no longer listening to input; halting");
@@ -325,15 +327,46 @@ impl EmergencyHullPaintingRobot {
     }
 }
 
+fn convert_painted_panels_to_image(painted: &HashMap<Position, PanelColor>) -> Vec<Vec<PanelColor>> {
+    let (min_x, max_x, min_y, max_y) = painted.keys().fold((isize::max_value(), isize::min_value(), isize::max_value(), isize::min_value()), |(min_x, max_x, min_y, max_y), p| {
+        (min_x.min(p.x), max_x.max(p.x), min_y.min(p.y), max_y.max(p.y))
+    });
+
+    println!("x: [{}, {}]; y: [{}, {}]", min_x, max_x, min_y, max_y);
+    let row_count = (max_y - min_y + 1).abs() as usize;
+    let col_count = (max_x - min_x + 1).abs() as usize;
+    let mut image = Vec::with_capacity(row_count);
+    image.resize(row_count, vec![PanelColor::Black; col_count]);
+
+    for (k, v) in painted.into_iter().filter(|(_, &v)| v != PanelColor::Black) {
+        image[(-k.y - max_y) as usize][(k.x - min_x) as usize] = *v;
+    }
+
+    image
+}
+
 pub fn run() -> anyhow::Result<()> {
     let painter = intcode::Memory::from_str(PUZZLE_INPUT)?;
 
     let mut runtime = tokio::runtime::Runtime::new()?;
 
     let mut robot = EmergencyHullPaintingRobot::default();
-    runtime.block_on(robot.run_painter(painter))?;
+    runtime.block_on(robot.run_painter(painter.clone()))?;
 
     println!("Robot painted {} panels", robot.visited.len());
+
+
+    let mut robot2 = EmergencyHullPaintingRobot::default();
+    robot2.default_panel = PanelColor::White;
+    runtime.block_on(robot2.run_painter(painter))?;
+    let image = convert_painted_panels_to_image(&robot2.visited);
+
+    for row in image {
+        for p in row {
+            print!("{}", p);
+        }
+        println!("");
+    }
 
     Ok(())
 }
