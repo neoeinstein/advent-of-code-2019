@@ -1,4 +1,4 @@
-//! Day 11: Space Police
+//! # Day 11: Space Police
 //!
 //! On the way to Jupiter, you're pulled over by the Space Police.
 //!
@@ -107,6 +107,21 @@
 //!
 //! Build a new emergency hull painting robot and run the Intcode program on it.
 //! How many panels does it paint at least once?
+//!
+//! ## Part Two
+//!
+//! You're not sure what it's trying to paint, but it's definitely not a
+//! registration identifier. The Space Police are getting impatient.
+//!
+//! Checking your external ship cameras again, you notice a white panel marked
+//! "emergency hull painting robot starting panel". The rest of the panels are
+//! still black, but it looks like the robot was expecting to start on a white
+//! panel, not a black one.
+//!
+//! Based on the Space Law Space Brochure that the Space Police attached to one
+//! of your windows, a valid registration identifier is always eight capital
+//! letters. After starting the robot on a single white panel instead, what
+//! registration identifier does it paint on your hull?
 
 use std::{collections::HashMap, convert::TryFrom, fmt, ops};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -256,19 +271,19 @@ impl ops::AddAssign<Orientation> for Position {
 
 #[derive(Debug)]
 struct EmergencyHullPaintingRobot {
-    default_panel: PanelColor,
     current: Position,
     orientation: Orientation,
     visited: HashMap<Position, PanelColor>,
+    strokes: usize,
 }
 
 impl Default for EmergencyHullPaintingRobot {
     fn default() -> Self {
         Self {
-            default_panel: PanelColor::default(),
             current: Position::ORIGIN,
             orientation: Orientation::North,
             visited: HashMap::new(),
+            strokes: 0,
         }
     }
 }
@@ -276,11 +291,12 @@ impl Default for EmergencyHullPaintingRobot {
 impl EmergencyHullPaintingRobot {
     async fn execute(
         &mut self,
+        background: PanelColor,
         mut camera: Sender<intcode::Word>,
         mut commands: Receiver<intcode::Word>,
     ) -> anyhow::Result<()> {
         loop {
-            let current = self.visited.entry(self.current).or_insert(self.default_panel);
+            let current = self.visited.entry(self.current).or_insert(background);
 
             if camera.send(intcode::Word::from(*current)).await.is_err() {
                 log::info!("camera no longer listening to input; halting");
@@ -304,12 +320,17 @@ impl EmergencyHullPaintingRobot {
             *current = paint;
             self.orientation += turn;
             self.current += self.orientation;
+            self.strokes += 1;
         }
 
         Ok(())
     }
 
-    pub async fn run_painter(&mut self, painter: intcode::Memory) -> anyhow::Result<()> {
+    pub async fn run_painter(
+        &mut self,
+        painter: intcode::Memory,
+        background: PanelColor,
+    ) -> anyhow::Result<()> {
         let mut exe = intcode::AsyncExecutable::from(painter);
         let camera = channel(1);
         let commands = channel(2);
@@ -319,7 +340,7 @@ impl EmergencyHullPaintingRobot {
 
         let join = tokio::spawn(exe.execute());
 
-        self.execute(camera.0, commands.1).await?;
+        self.execute(background, camera.0, commands.1).await?;
 
         join.await??;
 
@@ -327,10 +348,25 @@ impl EmergencyHullPaintingRobot {
     }
 }
 
-fn convert_painted_panels_to_image(painted: &HashMap<Position, PanelColor>) -> Vec<Vec<PanelColor>> {
-    let (min_x, max_x, min_y, max_y) = painted.keys().fold((isize::max_value(), isize::min_value(), isize::max_value(), isize::min_value()), |(min_x, max_x, min_y, max_y), p| {
-        (min_x.min(p.x), max_x.max(p.x), min_y.min(p.y), max_y.max(p.y))
-    });
+fn convert_painted_panels_to_image(
+    painted: &HashMap<Position, PanelColor>,
+) -> Vec<Vec<PanelColor>> {
+    let (min_x, max_x, min_y, max_y) = painted.keys().fold(
+        (
+            isize::max_value(),
+            isize::min_value(),
+            isize::max_value(),
+            isize::min_value(),
+        ),
+        |(min_x, max_x, min_y, max_y), p| {
+            (
+                min_x.min(p.x),
+                max_x.max(p.x),
+                min_y.min(p.y),
+                max_y.max(p.y),
+            )
+        },
+    );
 
     println!("x: [{}, {}]; y: [{}, {}]", min_x, max_x, min_y, max_y);
     let row_count = (max_y - min_y + 1).abs() as usize;
@@ -339,10 +375,27 @@ fn convert_painted_panels_to_image(painted: &HashMap<Position, PanelColor>) -> V
     image.resize(row_count, vec![PanelColor::Black; col_count]);
 
     for (k, v) in painted.into_iter().filter(|(_, &v)| v != PanelColor::Black) {
-        image[(-k.y - max_y) as usize][(k.x - min_x) as usize] = *v;
+        image[(k.y - max_y).abs() as usize][(k.x - min_x) as usize] = *v;
     }
 
     image
+}
+
+fn print_image(robot: &EmergencyHullPaintingRobot) {
+    let image = convert_painted_panels_to_image(&robot.visited);
+
+    println!(
+        "Robot painted {} panels after {} strokes",
+        robot.visited.len(),
+        robot.strokes
+    );
+    println!("Image:");
+    for row in image {
+        for p in row {
+            print!("{}", p);
+        }
+        println!("");
+    }
 }
 
 pub fn run() -> anyhow::Result<()> {
@@ -351,22 +404,12 @@ pub fn run() -> anyhow::Result<()> {
     let mut runtime = tokio::runtime::Runtime::new()?;
 
     let mut robot = EmergencyHullPaintingRobot::default();
-    runtime.block_on(robot.run_painter(painter.clone()))?;
+    runtime.block_on(robot.run_painter(painter.clone(), PanelColor::Black))?;
+    print_image(&robot);
 
-    println!("Robot painted {} panels", robot.visited.len());
-
-
-    let mut robot2 = EmergencyHullPaintingRobot::default();
-    robot2.default_panel = PanelColor::White;
-    runtime.block_on(robot2.run_painter(painter))?;
-    let image = convert_painted_panels_to_image(&robot2.visited);
-
-    for row in image {
-        for p in row {
-            print!("{}", p);
-        }
-        println!("");
-    }
+    let mut robot = EmergencyHullPaintingRobot::default();
+    runtime.block_on(robot.run_painter(painter.clone(), PanelColor::White))?;
+    print_image(&robot);
 
     Ok(())
 }
