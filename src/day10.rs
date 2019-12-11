@@ -219,7 +219,6 @@
 //! In the large example above (the one with the best monitoring station
 //! location at 11,13):
 //!
-//! ```text
 //! * The 1st asteroid to be vaporized is at 11,12.
 //! * The 2nd asteroid to be vaporized is at 12,1.
 //! * The 3rd asteroid to be vaporized is at 12,2.
