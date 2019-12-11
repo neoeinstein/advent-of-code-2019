@@ -25,7 +25,8 @@ fn main() -> Result<()> {
         }
         8 => day08::run()?,
         9 => day09::run()?,
-        _ => day10::run()?,
+        10 => day10::run()?,
+        _ => day11::run()?,
     }
 
     Ok(())

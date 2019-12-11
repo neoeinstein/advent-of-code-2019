@@ -238,10 +238,10 @@
 //! coordinate? (For example, 8,2 becomes 802.)
 
 use std::{
-    cmp::{Ord, PartialOrd, Ordering},
+    cmp::{Ord, Ordering, PartialOrd},
     collections::{HashMap, HashSet, VecDeque},
     fmt, io,
-    ops::{Neg, Add, Sub},
+    ops::{Add, Neg, Sub},
 };
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-10");
@@ -341,9 +341,13 @@ impl Add<Slope> for AsteroidPosition {
     type Output = Option<Self>;
     fn add(self, r: Slope) -> Self::Output {
         let next_x = self.x as isize + r.x;
-        if next_x < 0 { return None }
+        if next_x < 0 {
+            return None;
+        }
         let next_y = self.y as isize + r.y;
-        if next_y < 0 { return None }
+        if next_y < 0 {
+            return None;
+        }
 
         Some(Self {
             x: next_x as usize,
@@ -358,7 +362,8 @@ impl Sub for AsteroidPosition {
         Slope::new(
             self.x as isize - r.x as isize,
             self.y as isize - r.y as isize,
-        ).simplified()
+        )
+        .simplified()
     }
 }
 
@@ -385,7 +390,7 @@ impl AsteroidField {
 
     fn calculate_all_visibilities(&self) -> HashMap<AsteroidPosition, HashSet<Slope>> {
         let mut map: HashMap<_, HashSet<_>> = HashMap::new();
-    
+
         for (i, a) in self.asteroids.iter().copied().enumerate() {
             for b in self.asteroids.iter().skip(i + 1).copied() {
                 let slope = b - a;
@@ -393,7 +398,7 @@ impl AsteroidField {
                 map.entry(b).or_default().insert(-slope);
             }
         }
-    
+
         map
     }
 
@@ -410,10 +415,13 @@ impl AsteroidField {
     }
 
     fn vaporize_from(&self, station: AsteroidPosition) -> Vaporizor {
-        let visible: Vec<_> = self.calculate_all_visibility_angles_from(station).into_iter().collect();
+        let visible: Vec<_> = self
+            .calculate_all_visibility_angles_from(station)
+            .into_iter()
+            .collect();
         Vaporizor::new(
-            station, 
-            self.asteroids.iter().copied().collect(), 
+            station,
+            self.asteroids.iter().copied().collect(),
             visible,
             self.dimensions,
         )
@@ -499,7 +507,12 @@ impl fmt::Display for Vaporizor {
 }
 
 impl Vaporizor {
-    pub fn new(station: AsteroidPosition, asteroids: HashSet<AsteroidPosition>, known_slopes: Vec<Slope>, dims: (usize, usize)) -> Self {
+    pub fn new(
+        station: AsteroidPosition,
+        asteroids: HashSet<AsteroidPosition>,
+        known_slopes: Vec<Slope>,
+        dims: (usize, usize),
+    ) -> Self {
         let mut slopes = known_slopes;
         slopes.sort_unstable();
         let mut asteroids = asteroids;
@@ -527,7 +540,12 @@ impl Iterator for Vaporizor {
         }
 
         while let Some(next_slope) = self.to_sweep.pop_front() {
-            log::debug!("next: {:?}, left: {}, to_sweep: {}", next_slope, self.remaining_roids.len(), self.to_sweep.len());
+            log::debug!(
+                "next: {:?}, left: {}, to_sweep: {}",
+                next_slope,
+                self.remaining_roids.len(),
+                self.to_sweep.len()
+            );
             log::info!("Current state:\n{}", self);
             if let Some(candidate) = next_slope.0 + next_slope.1 {
                 if candidate.x <= self.dims.0 && candidate.y <= self.dims.1 {
@@ -566,14 +584,17 @@ pub fn run() -> anyhow::Result<()> {
     //     println!("Vaporized {:?} at {}", a, i + 1);
     // }
 
-    println!("200th vaporized asteroid: {:?}", vaporizor.nth(199).unwrap());
+    println!(
+        "200th vaporized asteroid: {:?}",
+        vaporizor.nth(199).unwrap()
+    );
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{Slope, AsteroidPosition, gcd, parse_input};
+    use super::{gcd, parse_input, AsteroidPosition, Slope};
     use pretty_assertions::assert_eq;
 
     #[test]
@@ -752,9 +773,7 @@ mod tests {
     fn calc_visibility_1() -> std::io::Result<()> {
         let field = parse_input(PART_1_EXAMPLE_1)?;
         let visibility = field.calculate_all_visibilities();
-        let best = visibility
-            .get(&AsteroidPosition::new(3, 4))
-            .unwrap();
+        let best = visibility.get(&AsteroidPosition::new(3, 4)).unwrap();
 
         assert_eq!(best.len(), 8);
 
@@ -765,9 +784,7 @@ mod tests {
     fn calc_visibility_2() -> std::io::Result<()> {
         let field = parse_input(PART_1_EXAMPLE_2)?;
         let visibility = field.calculate_all_visibilities();
-        let best = visibility
-            .get(&AsteroidPosition::new(5, 8))
-            .unwrap();
+        let best = visibility.get(&AsteroidPosition::new(5, 8)).unwrap();
 
         assert_eq!(best.len(), 33);
 
@@ -778,9 +795,7 @@ mod tests {
     fn calc_visibility_3() -> std::io::Result<()> {
         let field = parse_input(PART_1_EXAMPLE_3)?;
         let visibility = field.calculate_all_visibilities();
-        let best = visibility
-            .get(&AsteroidPosition::new(1, 2))
-            .unwrap();
+        let best = visibility.get(&AsteroidPosition::new(1, 2)).unwrap();
 
         assert_eq!(best.len(), 35);
 
@@ -791,9 +806,7 @@ mod tests {
     fn calc_visibility_4() -> std::io::Result<()> {
         let field = parse_input(PART_1_EXAMPLE_4)?;
         let visibility = field.calculate_all_visibilities();
-        let best = visibility
-            .get(&AsteroidPosition::new(6, 3))
-            .unwrap();
+        let best = visibility.get(&AsteroidPosition::new(6, 3)).unwrap();
 
         assert_eq!(best.len(), 41);
 
@@ -804,9 +817,7 @@ mod tests {
     fn calc_visibility_5() -> std::io::Result<()> {
         let field = parse_input(PART_1_EXAMPLE_5)?;
         let visibility = field.calculate_all_visibilities();
-        let best = visibility
-            .get(&AsteroidPosition::new(11, 13))
-            .unwrap();
+        let best = visibility.get(&AsteroidPosition::new(11, 13)).unwrap();
 
         assert_eq!(best.len(), 210);
 
@@ -931,12 +942,11 @@ mod tests {
         let mut success = true;
         for l in &ORDERING[..] {
             if *l != MIN {
-                let cmp =  l.cmp(&MIN);
+                let cmp = l.cmp(&MIN);
                 println!("{:?} {:?} {:?}", l, cmp, MIN);
                 if cmp != std::cmp::Ordering::Greater {
                     success = false;
                 }
-
             }
         }
 
@@ -949,12 +959,11 @@ mod tests {
         let mut success = true;
         for l in &ORDERING[..] {
             if *l != MAX {
-                let cmp =  l.cmp(&MAX);
+                let cmp = l.cmp(&MAX);
                 println!("{:?} {:?} {:?}", l, cmp, MAX);
                 if cmp != std::cmp::Ordering::Less {
                     success = false;
                 }
-
             }
         }
 
@@ -974,7 +983,6 @@ mod tests {
         assert!(success)
     }
 
-
     #[test]
     fn ordering_equal() {
         let mut success = true;
@@ -991,7 +999,11 @@ mod tests {
     #[test]
     fn ordering_rev() {
         let mut success = true;
-        for (l, r) in ORDERING[..].iter().rev().zip(ORDERING[..].iter().rev().skip(1)) {
+        for (l, r) in ORDERING[..]
+            .iter()
+            .rev()
+            .zip(ORDERING[..].iter().rev().skip(1))
+        {
             let ord = l.cmp(r);
             println!("{:?} {:?} {:?}", l, ord, r);
             if ord != std::cmp::Ordering::Greater {
@@ -1007,7 +1019,7 @@ mod tests {
         ##...#...#.#####.
         ..#.....X...###..
         ..#.#.....#....##";
-    
+
     #[test]
     fn vaporize_small() -> std::io::Result<()> {
         let field = parse_input(PART_2_EXAMPLE)?;
@@ -1028,7 +1040,6 @@ mod tests {
             AsteroidPosition::new(12, 1),
             AsteroidPosition::new(11, 2),
             AsteroidPosition::new(15, 1),
-
             AsteroidPosition::new(12, 2),
             AsteroidPosition::new(13, 2),
             AsteroidPosition::new(14, 2),
@@ -1038,7 +1049,6 @@ mod tests {
             AsteroidPosition::new(14, 4),
             AsteroidPosition::new(10, 4),
             AsteroidPosition::new(4, 4),
-
             AsteroidPosition::new(2, 4),
             AsteroidPosition::new(2, 3),
             AsteroidPosition::new(0, 2),
@@ -1048,7 +1058,6 @@ mod tests {
             AsteroidPosition::new(5, 2),
             AsteroidPosition::new(1, 0),
             AsteroidPosition::new(5, 1),
-
             AsteroidPosition::new(6, 1),
             AsteroidPosition::new(6, 0),
             AsteroidPosition::new(7, 0),

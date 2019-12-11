@@ -103,11 +103,11 @@ impl AsyncExecutable {
         AsyncBuffer::between(self, target)
     }
 
-    pub(super) fn pipe_outputs_to(&mut self, target: Sender<Word>) {
+    pub fn pipe_outputs_to(&mut self, target: Sender<Word>) {
         self.output = target;
     }
 
-    pub(super) fn pipe_inputs_from(&mut self, source: Receiver<Word>) {
+    pub fn pipe_inputs_from(&mut self, source: Receiver<Word>) {
         self.input = source;
     }
 
