@@ -55,3 +55,8 @@ pub fn run_intcode_program_single_in_single_out(
 
     Ok(results.last().copied().expect("one output"))
 }
+
+#[cfg(test)]
+fn init_logging() {
+    let _ = env_logger::builder().is_test(true).try_init();
+}

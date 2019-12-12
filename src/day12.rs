@@ -349,6 +349,7 @@
 //! previous state?
 
 use lazy_static::lazy_static;
+use num::Integer;
 use regex::Regex;
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-12");
@@ -631,6 +632,24 @@ impl MoonField {
         self.moons.iter().cloned().map(|m| m.z).collect()
     }
 
+    #[cfg(test)]
+    fn pos(&self) -> Vec<Position3D> {
+        self.moons
+            .iter()
+            .copied()
+            .map(Position3D::from)
+            .collect::<Vec<_>>()
+    }
+
+    #[cfg(test)]
+    fn vel(&self) -> Vec<Velocity3D> {
+        self.moons
+            .iter()
+            .copied()
+            .map(Velocity3D::from)
+            .collect::<Vec<_>>()
+    }
+
     fn step_velocity(&mut self) {
         for i in 0..(self.moons.len() - 1) {
             for j in (i + 1)..self.moons.len() {
@@ -661,39 +680,8 @@ impl MoonField {
         let z_steps = step_until_loop(self.z());
         log::info!("z steps: {}", z_steps);
 
-        lcm(lcm(x_steps, y_steps), z_steps)
+        x_steps.lcm(&y_steps).lcm(&z_steps)
     }
-}
-
-fn lcm(a: usize, b: usize) -> usize {
-    a * b / gcd(a, b)
-}
-
-fn gcd(mut a: usize, mut b: usize) -> usize {
-    if a == 0 {
-        return b;
-    }
-    if b == 0 {
-        return a;
-    }
-    let mut d = 0;
-    while a % 2 == 0 && b % 2 == 0 {
-        a /= 2;
-        b /= 2;
-        d += 1;
-    }
-    while a != b {
-        if a % 2 == 0 {
-            a /= 2;
-        } else if b % 2 == 0 {
-            b /= 2;
-        } else if a > b {
-            a = (a - b) / 2;
-        } else {
-            b = (b - a) / 2;
-        }
-    }
-    a << d
 }
 
 impl Energetic for MoonField {
@@ -725,7 +713,7 @@ pub fn run() -> anyhow::Result<()> {
         field.nth(999).unwrap_or_default()
     );
 
-    println!("Steps to repeat initial condition: {}", field.cycle_time(),);
+    println!("Steps to repeat initial condition: {}", field.cycle_time());
 
     Ok(())
 }
@@ -736,13 +724,15 @@ mod tests {
     use anyhow::Result;
     use pretty_assertions::assert_eq;
 
-    const EXAMPLE_INPUT_1: &str = "<x=-1, y=0, z=2>
-    <x=2, y=-10, z=-7>
-    <x=4, y=-8, z=8>
-    <x=3, y=5, z=-1>";
+    const EXAMPLE_INPUT_1: &str = "
+        <x=-1, y=0, z=2>
+        <x=2, y=-10, z=-7>
+        <x=4, y=-8, z=8>
+        <x=3, y=5, z=-1>";
 
     #[test]
     fn verify_step_1() -> Result<()> {
+        crate::init_logging();
         let positions = parse_input(EXAMPLE_INPUT_1)?;
         let mut field = MoonField::new(positions);
 
@@ -757,15 +747,7 @@ mod tests {
             Velocity3D { x: -1, y: -3, z: 1 },
         ];
 
-        assert_eq!(
-            field
-                .moons
-                .iter()
-                .copied()
-                .map(Velocity3D::from)
-                .collect::<Vec<_>>(),
-            expected_velocities
-        );
+        assert_eq!(field.vel(), expected_velocities);
 
         field.step_positions();
 
@@ -776,21 +758,14 @@ mod tests {
             Position3D { x: 2, y: 2, z: 0 },
         ];
 
-        assert_eq!(
-            field
-                .moons
-                .iter()
-                .copied()
-                .map(Position3D::from)
-                .collect::<Vec<_>>(),
-            expected_positions
-        );
+        assert_eq!(field.pos(), expected_positions);
 
         Ok(())
     }
 
     #[test]
     fn verify_energy_after_step_10() -> Result<()> {
+        crate::init_logging();
         let positions = parse_input(EXAMPLE_INPUT_1)?;
         let mut field = MoonField::new(positions);
 
@@ -807,13 +782,15 @@ mod tests {
         Ok(())
     }
 
-    const EXAMPLE_INPUT_2: &str = "<x=-8, y=-10, z=0>
-    <x=5, y=5, z=10>
-    <x=2, y=-7, z=3>
-    <x=9, y=-8, z=-3>";
+    const EXAMPLE_INPUT_2: &str = "
+        <x=-8, y=-10, z=0>
+        <x=5, y=5, z=10>
+        <x=2, y=-7, z=3>
+        <x=9, y=-8, z=-3>";
 
     #[test]
     fn verify_energy_after_step_100() -> Result<()> {
+        crate::init_logging();
         let positions = parse_input(EXAMPLE_INPUT_2)?;
         let mut field = MoonField::new(positions);
 
@@ -832,7 +809,7 @@ mod tests {
 
     #[test]
     fn find_cycle_time_1() -> Result<()> {
-        let _ = env_logger::Builder::new().is_test(true).try_init();
+        crate::init_logging();
         let positions = parse_input(EXAMPLE_INPUT_1)?;
         let field = MoonField::new(positions);
 
@@ -845,7 +822,7 @@ mod tests {
 
     #[test]
     fn find_cycle_time_2() -> Result<()> {
-        let _ = env_logger::Builder::new().is_test(true).try_init();
+        crate::init_logging();
         let positions = parse_input(EXAMPLE_INPUT_2)?;
         let field = MoonField::new(positions);
 

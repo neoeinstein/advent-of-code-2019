@@ -236,6 +236,7 @@
 //! do you get if you multiply its X coordinate by 100 and then add its Y
 //! coordinate? (For example, 8,2 becomes 802.)
 
+use num::Integer;
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     collections::{HashMap, HashSet, VecDeque},
@@ -263,42 +264,13 @@ impl Ord for Slope {
     }
 }
 
-fn gcd(mut a: isize, mut b: isize) -> isize {
-    if a == 0 {
-        return b;
-    }
-    if b == 0 {
-        return a;
-    }
-    a = a.abs();
-    b = b.abs();
-    let mut d = 0;
-    while a % 2 == 0 && b % 2 == 0 {
-        a /= 2;
-        b /= 2;
-        d += 1;
-    }
-    while a != b {
-        if a % 2 == 0 {
-            a /= 2;
-        } else if b % 2 == 0 {
-            b /= 2;
-        } else if a > b {
-            a = (a - b) / 2;
-        } else {
-            b = (b - a) / 2;
-        }
-    }
-    a << d
-}
-
 impl Slope {
     const fn new(x: isize, y: isize) -> Self {
         Self { x, y }
     }
 
     fn simplified(mut self) -> Self {
-        let div = gcd(self.x, self.y).abs();
+        let div = self.x.gcd(&self.y).abs();
         if div == 0 {
             return Self {
                 x: self.x.signum(),
@@ -310,6 +282,7 @@ impl Slope {
         self
     }
 
+    #[inline]
     fn theta(self) -> f64 {
         -(self.x as f64).atan2(self.y as f64)
     }
@@ -406,7 +379,7 @@ impl AsteroidField {
         visibility
             .into_iter()
             .map(|(p, s)| {
-                //println!("Asteroid {:?} can see {:?}", p, s);
+                log::debug!("Asteroid {:?} can see {:?}", p, s);
                 (p, s.len())
             })
             .max_by(|(_, c), (_, d)| c.cmp(d))
@@ -539,13 +512,13 @@ impl Iterator for Vaporizor {
         }
 
         while let Some(next_slope) = self.to_sweep.pop_front() {
-            log::debug!(
+            log::trace!(
                 "next: {:?}, left: {}, to_sweep: {}",
                 next_slope,
                 self.remaining_roids.len(),
                 self.to_sweep.len()
             );
-            log::info!("Current state:\n{}", self);
+            log::debug!("Current state:\n{}", self);
             if let Some(candidate) = next_slope.0 + next_slope.1 {
                 if candidate.x <= self.dims.0 && candidate.y <= self.dims.1 {
                     if self.remaining_roids.remove(&candidate) {
@@ -593,43 +566,8 @@ pub fn run() -> anyhow::Result<()> {
 
 #[cfg(test)]
 mod tests {
-    use super::{gcd, parse_input, AsteroidPosition, Slope};
+    use super::{parse_input, AsteroidPosition, Slope};
     use pretty_assertions::assert_eq;
-
-    #[test]
-    fn gcf_15_12() {
-        assert_eq!(gcd(15, 12), 3);
-    }
-
-    #[test]
-    fn gcf_80_120() {
-        assert_eq!(gcd(80, 120), 40);
-    }
-
-    #[test]
-    fn gcf_neg80_120() {
-        assert_eq!(gcd(-80, 120), 40);
-    }
-
-    #[test]
-    fn gcf_neg80_neg120() {
-        assert_eq!(gcd(-80, -120), 40);
-    }
-
-    #[test]
-    fn gcf_80_neg120() {
-        assert_eq!(gcd(80, -120), 40);
-    }
-
-    #[test]
-    fn gcf_80_0() {
-        assert_eq!(gcd(80, 0), 80);
-    }
-
-    #[test]
-    fn gcf_0_80() {
-        assert_eq!(gcd(0, 80), 80);
-    }
 
     #[test]
     fn slope_reduce_64_32() {
@@ -770,6 +708,7 @@ mod tests {
 
     #[test]
     fn calc_visibility_1() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_1)?;
         let visibility = field.calculate_all_visibilities();
         let best = visibility.get(&AsteroidPosition::new(3, 4)).unwrap();
@@ -781,6 +720,7 @@ mod tests {
 
     #[test]
     fn calc_visibility_2() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_2)?;
         let visibility = field.calculate_all_visibilities();
         let best = visibility.get(&AsteroidPosition::new(5, 8)).unwrap();
@@ -792,6 +732,7 @@ mod tests {
 
     #[test]
     fn calc_visibility_3() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_3)?;
         let visibility = field.calculate_all_visibilities();
         let best = visibility.get(&AsteroidPosition::new(1, 2)).unwrap();
@@ -803,6 +744,7 @@ mod tests {
 
     #[test]
     fn calc_visibility_4() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_4)?;
         let visibility = field.calculate_all_visibilities();
         let best = visibility.get(&AsteroidPosition::new(6, 3)).unwrap();
@@ -814,6 +756,7 @@ mod tests {
 
     #[test]
     fn calc_visibility_5() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_5)?;
         let visibility = field.calculate_all_visibilities();
         let best = visibility.get(&AsteroidPosition::new(11, 13)).unwrap();
@@ -825,6 +768,7 @@ mod tests {
 
     #[test]
     fn best_monitoring_location_1() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_1)?;
         let best = field.find_best_place_for_monitoring();
         const EXPECTED: AsteroidPosition = AsteroidPosition::new(3, 4);
@@ -836,6 +780,7 @@ mod tests {
 
     #[test]
     fn best_monitoring_location_2() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_2)?;
         let best = field.find_best_place_for_monitoring();
         const EXPECTED: AsteroidPosition = AsteroidPosition::new(5, 8);
@@ -847,6 +792,7 @@ mod tests {
 
     #[test]
     fn best_monitoring_location_3() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_3)?;
         let best = field.find_best_place_for_monitoring();
         const EXPECTED: AsteroidPosition = AsteroidPosition::new(1, 2);
@@ -858,6 +804,7 @@ mod tests {
 
     #[test]
     fn best_monitoring_location_4() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_4)?;
         let best = field.find_best_place_for_monitoring();
         const EXPECTED: AsteroidPosition = AsteroidPosition::new(6, 3);
@@ -869,6 +816,7 @@ mod tests {
 
     #[test]
     fn best_monitoring_location_5() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_5)?;
         let best = field.find_best_place_for_monitoring();
         const EXPECTED: AsteroidPosition = AsteroidPosition::new(11, 13);
@@ -1021,6 +969,7 @@ mod tests {
 
     #[test]
     fn vaporize_small() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_2_EXAMPLE)?;
         let station = AsteroidPosition::new(8, 3);
         let vaporized_in_order: Vec<_> = field.vaporize_from(station).collect();
@@ -1075,6 +1024,7 @@ mod tests {
 
     #[test]
     fn vaporize_large() -> std::io::Result<()> {
+        crate::init_logging();
         let field = parse_input(PART_1_EXAMPLE_5)?;
         let station = AsteroidPosition::new(11, 13);
         let vaporized_in_order: Vec<_> = field.vaporize_from(station).collect();
