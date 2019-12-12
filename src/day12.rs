@@ -574,26 +574,34 @@ impl From<Axis3D> for Velocity3D {
 
 impl Energetic for Axis3D {
     fn energy(&self) -> usize {
-        let potential = self.x.position.abs() as usize + self.y.position.abs() as usize + self.z.position.abs() as usize;
-        let kinetic = self.x.velocity.abs() as usize + self.y.velocity.abs() as usize + self.z.velocity.abs() as usize;
+        let potential = self.x.position.abs() as usize
+            + self.y.position.abs() as usize
+            + self.z.position.abs() as usize;
+        let kinetic = self.x.velocity.abs() as usize
+            + self.y.velocity.abs() as usize
+            + self.z.velocity.abs() as usize;
         potential * kinetic
     }
 }
 
-fn step_until_loop(mut axis: [Axis; 4]) -> usize {
+fn step_until_loop(initial: Vec<Axis>) -> usize {
     let mut steps = 0;
-    let mut states = std::collections::HashSet::new();
-    while states.insert(axis) {
-        for i in 0..3 {
-            for j in (i + 1)..4 {
-                let (l, r) = axis[..].split_at_mut(j);
+    let mut axes = initial.clone();
+    loop {
+        for i in 0..(axes.len() - 1) {
+            for j in (i + 1)..axes.len() {
+                let (l, r) = axes.split_at_mut(j);
                 l[i].step_velocity(&mut r[0]);
             }
         }
-        for i in 0..4 {
-            axis[i].step_position();
+        for axis in &mut axes {
+            axis.step_position();
         }
         steps += 1;
+
+        if axes == initial {
+            break;
+        }
     }
 
     steps
@@ -644,19 +652,13 @@ impl MoonField {
     }
 
     fn cycle_time(&self) -> usize {
-        let x = self.x();
-        let xs = [x[0], x[1], x[2], x[3]];
-        let x_steps = step_until_loop(xs);
+        let x_steps = step_until_loop(self.x());
         log::info!("x steps: {}", x_steps);
 
-        let y = self.y();
-        let ys = [y[0], y[1], y[2], y[3]];
-        let y_steps = step_until_loop(ys);
+        let y_steps = step_until_loop(self.y());
         log::info!("y steps: {}", y_steps);
 
-        let z = self.z();
-        let zs = [z[0], z[1], z[2], z[3]];
-        let z_steps = step_until_loop(zs);
+        let z_steps = step_until_loop(self.z());
         log::info!("z steps: {}", z_steps);
 
         lcm(lcm(x_steps, y_steps), z_steps)
@@ -696,10 +698,7 @@ fn gcd(mut a: usize, mut b: usize) -> usize {
 
 impl Energetic for MoonField {
     fn energy(&self) -> usize {
-        self.moons
-            .iter()
-            .map(Energetic::energy)
-            .sum()
+        self.moons.iter().map(Energetic::energy).sum()
     }
 }
 
@@ -726,10 +725,7 @@ pub fn run() -> anyhow::Result<()> {
         field.nth(999).unwrap_or_default()
     );
 
-    println!(
-        "Steps to repeat initial condition: {}",
-        field.cycle_time(),
-    );
+    println!("Steps to repeat initial condition: {}", field.cycle_time(),);
 
     Ok(())
 }
@@ -761,7 +757,15 @@ mod tests {
             Velocity3D { x: -1, y: -3, z: 1 },
         ];
 
-        assert_eq!(field.moons.iter().copied().map(Velocity3D::from).collect::<Vec<_>>(), expected_velocities);
+        assert_eq!(
+            field
+                .moons
+                .iter()
+                .copied()
+                .map(Velocity3D::from)
+                .collect::<Vec<_>>(),
+            expected_velocities
+        );
 
         field.step_positions();
 
@@ -772,7 +776,15 @@ mod tests {
             Position3D { x: 2, y: 2, z: 0 },
         ];
 
-        assert_eq!(field.moons.iter().copied().map(Position3D::from).collect::<Vec<_>>(), expected_positions);
+        assert_eq!(
+            field
+                .moons
+                .iter()
+                .copied()
+                .map(Position3D::from)
+                .collect::<Vec<_>>(),
+            expected_positions
+        );
 
         Ok(())
     }
@@ -842,4 +854,5 @@ mod tests {
         assert_eq!(field.cycle_time(), EXPECTED);
 
         Ok(())
-    }}
+    }
+}
