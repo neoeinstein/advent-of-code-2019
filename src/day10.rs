@@ -1068,7 +1068,7 @@ mod tests {
             AsteroidPosition::new(13, 3),
         ];
 
-        assert_eq!(&vaporized_in_order, VAPORIZE_ORDER);
+        assert_eq!(vaporized_in_order, VAPORIZE_ORDER);
 
         Ok(())
     }
