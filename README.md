@@ -12,7 +12,7 @@ to run can be specified with the `-d` or `--day` option. If none is specified,
 then the latest day is run.
 
 ```bash
-cargo run --bin puzzle-03 --features part-1 -- inputs/input-03
+cargo run -d 12
 ```
 
 Benchmarks are also provided and can be run with `cargo bench`. Tests can be
