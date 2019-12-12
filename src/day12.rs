@@ -1,4 +1,4 @@
-//! Day 12: The N-Body Problem
+//! # Day 12: The N-Body Problem
 //!
 //! The space near Jupiter is not a very safe place; you need to be careful of a
 //! big distracting red spot, extreme radiation, and a whole lot of moons
@@ -283,6 +283,70 @@
 //!
 //! What is the total energy in the system after simulating the moons given in
 //! your scan for 1000 steps?
+//! ## Part Two
+//!
+//! All this drifting around in space makes you wonder about the nature of the
+//! universe. Does history really repeat itself? You're curious whether the
+//! moons will ever return to a previous state.
+//!
+//! Determine the number of steps that must occur before all of the moons'
+//! positions and velocities exactly match a previous point in time.
+//!
+//! For example, the first example above takes 2772 steps before they exactly
+//! match a previous point in time; it eventually returns to the initial state:
+//!
+//! After 0 steps:
+//!
+//! ```text
+//! pos=<x= -1, y=  0, z=  2>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  2, y=-10, z= -7>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  4, y= -8, z=  8>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  3, y=  5, z= -1>, vel=<x=  0, y=  0, z=  0>
+//! ```
+//!
+//! After 2770 steps:
+//!
+//! ```text
+//! pos=<x=  2, y= -1, z=  1>, vel=<x= -3, y=  2, z=  2>
+//! pos=<x=  3, y= -7, z= -4>, vel=<x=  2, y= -5, z= -6>
+//! pos=<x=  1, y= -7, z=  5>, vel=<x=  0, y= -3, z=  6>
+//! pos=<x=  2, y=  2, z=  0>, vel=<x=  1, y=  6, z= -2>
+//! ```
+//!
+//! After 2771 steps:
+//!
+//! ```text
+//! pos=<x= -1, y=  0, z=  2>, vel=<x= -3, y=  1, z=  1>
+//! pos=<x=  2, y=-10, z= -7>, vel=<x= -1, y= -3, z= -3>
+//! pos=<x=  4, y= -8, z=  8>, vel=<x=  3, y= -1, z=  3>
+//! pos=<x=  3, y=  5, z= -1>, vel=<x=  1, y=  3, z= -1>
+//! ```
+//!
+//! After 2772 steps:
+//!
+//! ```text
+//! pos=<x= -1, y=  0, z=  2>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  2, y=-10, z= -7>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  4, y= -8, z=  8>, vel=<x=  0, y=  0, z=  0>
+//! pos=<x=  3, y=  5, z= -1>, vel=<x=  0, y=  0, z=  0>
+//! ```
+//!
+//! Of course, the universe might last for a very long time before repeating.
+//! Here's a copy of the second example from above:
+//!
+//! ```text
+//! <x=-8, y=-10, z=0>
+//! <x=5, y=5, z=10>
+//! <x=2, y=-7, z=3>
+//! <x=9, y=-8, z=-3>
+//! ```
+//!
+//! This set of initial positions takes 4686774924 steps before it repeats a
+//! previous state! Clearly, you might need to find a more efficient way to
+//! simulate the universe.
+//!
+//! How many steps does it take to reach the first state that exactly matches a
+//! previous state?
 
 use lazy_static::lazy_static;
 use regex::Regex;
@@ -426,77 +490,151 @@ fn parse_input(input: &str) -> anyhow::Result<Vec<Position3D>> {
     Ok(positions)
 }
 
-#[derive(Debug)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+struct Axis {
+    position: i16,
+    velocity: i16,
+}
+
+impl Axis {
+    fn new(position: i16) -> Self {
+        Self {
+            position,
+            velocity: 0,
+        }
+    }
+
+    fn step_velocity(&mut self, other: &mut Self) {
+        use std::cmp::Ordering;
+
+        let dv = match self.position.cmp(&other.position) {
+            Ordering::Less => -1,
+            Ordering::Greater => 1,
+            Ordering::Equal => 0,
+        };
+        self.velocity -= dv;
+        other.velocity += dv;
+    }
+
+    fn step_position(&mut self) {
+        self.position += self.velocity;
+    }
+}
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+struct Axis3D {
+    x: Axis,
+    y: Axis,
+    z: Axis,
+}
+
+impl From<Position3D> for Axis3D {
+    fn from(p: Position3D) -> Self {
+        Self {
+            x: Axis::new(p.x),
+            y: Axis::new(p.y),
+            z: Axis::new(p.z),
+        }
+    }
+}
+
+impl Axis3D {
+    fn step_velocity(&mut self, other: &mut Self) {
+        self.x.step_velocity(&mut other.x);
+        self.y.step_velocity(&mut other.y);
+        self.z.step_velocity(&mut other.z);
+    }
+
+    fn step_position(&mut self) {
+        self.x.step_position();
+        self.y.step_position();
+        self.z.step_position();
+    }
+}
+
+impl From<Axis3D> for Position3D {
+    fn from(a: Axis3D) -> Self {
+        Self {
+            x: a.x.position,
+            y: a.y.position,
+            z: a.z.position,
+        }
+    }
+}
+
+impl From<Axis3D> for Velocity3D {
+    fn from(a: Axis3D) -> Self {
+        Self {
+            x: a.x.velocity,
+            y: a.y.velocity,
+            z: a.z.velocity,
+        }
+    }
+}
+
+impl Energetic for Axis3D {
+    fn energy(&self) -> usize {
+        let potential = self.x.position.abs() as usize + self.y.position.abs() as usize + self.z.position.abs() as usize;
+        let kinetic = self.x.velocity.abs() as usize + self.y.velocity.abs() as usize + self.z.velocity.abs() as usize;
+        potential * kinetic
+    }
+}
+
+fn step_until_loop(mut axis: [Axis; 4]) -> usize {
+    let mut steps = 0;
+    let mut states = std::collections::HashSet::new();
+    while states.insert(axis) {
+        for i in 0..3 {
+            for j in (i + 1)..4 {
+                let (l, r) = axis[..].split_at_mut(j);
+                l[i].step_velocity(&mut r[0]);
+            }
+        }
+        for i in 0..4 {
+            axis[i].step_position();
+        }
+        steps += 1;
+    }
+
+    steps
+}
+
+#[derive(Clone, Debug, PartialEq, Eq)]
 struct MoonField {
-    positions: Vec<Position3D>,
-    velocities: Vec<Velocity3D>,
+    moons: Vec<Axis3D>,
 }
 
 impl MoonField {
     pub fn new(initial_pos: Vec<Position3D>) -> Self {
-        let mut velocities = Vec::with_capacity(initial_pos.len());
-        velocities.resize(initial_pos.len(), Velocity3D::default());
         Self {
-            positions: initial_pos,
-            velocities,
+            moons: initial_pos.into_iter().map(Axis3D::from).collect(),
         }
     }
 
+    fn x(&self) -> Vec<Axis> {
+        self.moons.iter().cloned().map(|m| m.x).collect()
+    }
+
+    fn y(&self) -> Vec<Axis> {
+        self.moons.iter().cloned().map(|m| m.y).collect()
+    }
+
+    fn z(&self) -> Vec<Axis> {
+        self.moons.iter().cloned().map(|m| m.z).collect()
+    }
+
     fn step_velocity(&mut self) {
-        use std::cmp::Ordering;
-
-        for (i, p) in self.positions.iter().copied().enumerate() {
-            for (j, q) in self.positions.iter().skip(i + 1).copied().enumerate() {
-                macro_rules! compare {
-                    ($w:ident) => {{
-                        log::trace!(
-                            "p.{}: {} {:?} q.{}: {}",
-                            stringify!($w),
-                            p.$w,
-                            p.$w.cmp(&q.$w),
-                            stringify!($w),
-                            q.$w
-                        );
-                        match p.$w.cmp(&q.$w) {
-                            Ordering::Less => -1,
-                            Ordering::Greater => 1,
-                            Ordering::Equal => 0,
-                        }
-                    }};
-                }
-
-                log::trace!(
-                    "Before: {:?} {:?}",
-                    self.velocities[i],
-                    self.velocities[j + i + 1]
-                );
-                let dx = compare!(x);
-                let dy = compare!(y);
-                let dz = compare!(z);
-                let dv = Velocity3D {
-                    x: dx,
-                    y: dy,
-                    z: dz,
-                };
-                log::trace!("Delta: {:?}", dv);
-                self.velocities[i] -= dv;
-                self.velocities[j + i + 1] += dv;
-                log::trace!(
-                    "After: {:?} {:?}",
-                    self.velocities[i],
-                    self.velocities[j + i + 1]
-                );
+        for i in 0..(self.moons.len() - 1) {
+            for j in (i + 1)..self.moons.len() {
+                let (l, r) = self.moons.split_at_mut(j);
+                l[i].step_velocity(&mut r[0]);
             }
         }
     }
 
     fn step_positions(&mut self) {
-        for (p, v) in self
-            .positions
-            .iter_mut()
-            .zip(self.velocities.iter().copied())
-        {
-            *p += v;
+        for m in self.moons.iter_mut() {
+            m.step_position();
         }
     }
 
@@ -504,14 +642,63 @@ impl MoonField {
         self.step_velocity();
         self.step_positions();
     }
+
+    fn cycle_time(&self) -> usize {
+        let x = self.x();
+        let xs = [x[0], x[1], x[2], x[3]];
+        let x_steps = step_until_loop(xs);
+        log::info!("x steps: {}", x_steps);
+
+        let y = self.y();
+        let ys = [y[0], y[1], y[2], y[3]];
+        let y_steps = step_until_loop(ys);
+        log::info!("y steps: {}", y_steps);
+
+        let z = self.z();
+        let zs = [z[0], z[1], z[2], z[3]];
+        let z_steps = step_until_loop(zs);
+        log::info!("z steps: {}", z_steps);
+
+        lcm(lcm(x_steps, y_steps), z_steps)
+    }
+}
+
+fn lcm(a: usize, b: usize) -> usize {
+    a * b / gcd(a, b)
+}
+
+fn gcd(mut a: usize, mut b: usize) -> usize {
+    if a == 0 {
+        return b;
+    }
+    if b == 0 {
+        return a;
+    }
+    let mut d = 0;
+    while a % 2 == 0 && b % 2 == 0 {
+        a /= 2;
+        b /= 2;
+        d += 1;
+    }
+    while a != b {
+        if a % 2 == 0 {
+            a /= 2;
+        } else if b % 2 == 0 {
+            b /= 2;
+        } else if a > b {
+            a = (a - b) / 2;
+        } else {
+            b = (b - a) / 2;
+        }
+    }
+    a << d
 }
 
 impl Energetic for MoonField {
     fn energy(&self) -> usize {
-        self.positions
+        self.moons
             .iter()
-            .zip(self.velocities.iter())
-            .map(|(p, v)| p.energy() * v.energy())
+            .map(Energetic::energy)
             .sum()
     }
 }
@@ -537,6 +724,11 @@ pub fn run() -> anyhow::Result<()> {
     println!(
         "Energy at step 1000: {}",
         field.nth(999).unwrap_or_default()
+    );
+
+    println!(
+        "Steps to repeat initial condition: {}",
+        field.cycle_time(),
     );
 
     Ok(())
@@ -569,7 +761,7 @@ mod tests {
             Velocity3D { x: -1, y: -3, z: 1 },
         ];
 
-        assert_eq!(field.velocities, expected_velocities);
+        assert_eq!(field.moons.iter().copied().map(Velocity3D::from).collect::<Vec<_>>(), expected_velocities);
 
         field.step_positions();
 
@@ -580,7 +772,7 @@ mod tests {
             Position3D { x: 2, y: 2, z: 0 },
         ];
 
-        assert_eq!(field.positions, expected_positions);
+        assert_eq!(field.moons.iter().copied().map(Position3D::from).collect::<Vec<_>>(), expected_positions);
 
         Ok(())
     }
@@ -625,4 +817,29 @@ mod tests {
 
         Ok(())
     }
-}
+
+    #[test]
+    fn find_cycle_time_1() -> Result<()> {
+        let _ = env_logger::Builder::new().is_test(true).try_init();
+        let positions = parse_input(EXAMPLE_INPUT_1)?;
+        let field = MoonField::new(positions);
+
+        const EXPECTED: usize = 2772;
+
+        assert_eq!(field.cycle_time(), EXPECTED);
+
+        Ok(())
+    }
+
+    #[test]
+    fn find_cycle_time_2() -> Result<()> {
+        let _ = env_logger::Builder::new().is_test(true).try_init();
+        let positions = parse_input(EXAMPLE_INPUT_2)?;
+        let field = MoonField::new(positions);
+
+        const EXPECTED: usize = 4686774924;
+
+        assert_eq!(field.cycle_time(), EXPECTED);
+
+        Ok(())
+    }}
