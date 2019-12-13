@@ -126,6 +126,12 @@ struct Position2D {
     y: intcode::Word,
 }
 
+impl fmt::Display for Position2D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum JoystickPosition {
     Left = -1,
@@ -139,6 +145,16 @@ impl From<JoystickPosition> for intcode::Word {
             JoystickPosition::Left => -1,
             JoystickPosition::Neutral => 0,
             JoystickPosition::Right => 1,
+        }
+    }
+}
+
+impl fmt::Display for JoystickPosition {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        match self {
+            JoystickPosition::Left => write!(f, "{}Left{}", color::Fg(color::Yellow), style::Reset),
+            JoystickPosition::Neutral => f.write_str("Neutral"),
+            JoystickPosition::Right => write!(f, "{}Right{}", color::Fg(color::Cyan), style::Reset),
         }
     }
 }
@@ -251,7 +267,8 @@ impl fmt::Display for Field {
         }
         writeln!(
             f,
-            "Remaining blocks: {}{}{}{}",
+            "{}Remaining blocks: {}{}{}{}",
+            clear::CurrentLine,
             color::Fg(color::LightWhite),
             style::Bold,
             self.blocks_remaining(),
@@ -259,7 +276,8 @@ impl fmt::Display for Field {
         )?;
         writeln!(
             f,
-            "Ball: {} {} {:?}, Paddle: {:?}",
+            "{}Ball: {} {} {}, Paddle: {}",
+            clear::CurrentLine,
             self.ball_dir, self.ball_vert, self.ball, self.paddle
         )?;
         Ok(())
@@ -491,7 +509,15 @@ impl fmt::Display for TargetDisplay {
 }
 
 async fn run_game(mut game: intcode::Memory) -> anyhow::Result<intcode::Word> {
+    // Insert quarter
     game.write_arbitrary(intcode::Address::new(0), 2);
+
+    // Cheats!
+    // Location for points in memory
+    // game.write_arbitrary(intcode::Address::new(386), 1000000);
+    // Location for blocks remaining in memory
+    // game.write_arbitrary(intcode::Address::new(205), 0);
+
     let exe = intcode::AsyncExecutable::from(game);
     let joystick = watch::channel(intcode::Word::from(JoystickPosition::Neutral));
     let mut display = mpsc::channel(1);
@@ -504,6 +530,7 @@ async fn run_game(mut game: intcode::Memory) -> anyhow::Result<intcode::Word> {
     let mut field = construct_field(&mut display.1).await?;
     let mut targets = field.clone().paddle_target_iterator();
     let mut target = targets.next();
+    let mut last = Tile::Ball;
 
     log::info!("First target {:?}", target);
     println!("{}{}{}", clear::All, cursor::Goto(1, 1), field);
@@ -528,13 +555,16 @@ async fn run_game(mut game: intcode::Memory) -> anyhow::Result<intcode::Word> {
         }
 
         let value = format!(
-            "{}\n{}Joystick lean: {:?}",
+            "{}\n{}{}Joystick lean: {}",
             field,
             TargetDisplay(target),
+            clear::CurrentLine,
             joystick_pos
         );
         println!("{}{}", cursor::Goto(1, 1), value);
-        tokio::time::delay_for(std::time::Duration::from_millis(8)).await;
+        if last == Tile::Ball {
+            tokio::time::delay_for(std::time::Duration::from_millis(33)).await;
+        }
 
         let (x, y, t) = if let Some((x, y, t)) = receive_next(&mut display.1).await {
             (x, y, t)
@@ -549,6 +579,7 @@ async fn run_game(mut game: intcode::Memory) -> anyhow::Result<intcode::Word> {
             let pos = Position2D { x, y };
 
             let tile = Tile::try_from(t)?;
+            last = tile;
 
             log::trace!("Tile: {:?} at {:?}", tile, pos);
             field.set_tile(pos, tile);
