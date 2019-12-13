@@ -270,7 +270,7 @@ impl Slope {
     }
 
     fn simplified(mut self) -> Self {
-        let div = self.x.gcd(&self.y).abs();
+        let div = self.x.gcd(&self.y);
         if div == 0 {
             return Self {
                 x: self.x.signum(),
@@ -391,6 +391,7 @@ impl AsteroidField {
             .calculate_all_visibility_angles_from(station)
             .into_iter()
             .collect();
+        log::debug!("{} unique visible asteroids", visible.len());
         Vaporizor::new(
             station,
             self.asteroids.iter().copied().collect(),
@@ -461,8 +462,8 @@ struct Vaporizor {
 
 impl fmt::Display for Vaporizor {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        for y in 0..self.dims.1 {
-            for x in 0..self.dims.0 {
+        for y in 0..=self.dims.1 {
+            for x in 0..=self.dims.0 {
                 let position = AsteroidPosition::new(x, y);
                 if self.station == position {
                     Position::Station.fmt(f)?;
@@ -993,8 +994,8 @@ mod tests {
             AsteroidPosition::new(14, 2),
             AsteroidPosition::new(15, 2),
             AsteroidPosition::new(12, 3),
+            AsteroidPosition::new(16, 4),
             AsteroidPosition::new(15, 4),
-            AsteroidPosition::new(14, 4),
             AsteroidPosition::new(10, 4),
             AsteroidPosition::new(4, 4),
             AsteroidPosition::new(2, 4),
@@ -1011,10 +1012,10 @@ mod tests {
             AsteroidPosition::new(7, 0),
             AsteroidPosition::new(8, 0),
             AsteroidPosition::new(10, 1),
-            AsteroidPosition::new(13, 0),
-            AsteroidPosition::new(15, 1),
-            AsteroidPosition::new(12, 3),
+            AsteroidPosition::new(14, 0),
+            AsteroidPosition::new(16, 1),
             AsteroidPosition::new(13, 3),
+            AsteroidPosition::new(14, 3),
         ];
 
         assert_eq!(vaporized_in_order, VAPORIZE_ORDER);
