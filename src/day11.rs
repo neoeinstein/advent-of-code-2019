@@ -374,7 +374,7 @@ fn convert_painted_panels_to_image(
     let mut image = Vec::with_capacity(row_count);
     image.resize(row_count, vec![PanelColor::Black; col_count]);
 
-    for (k, v) in painted.into_iter().filter(|(_, &v)| v != PanelColor::Black) {
+    for (k, v) in painted.iter().filter(|(_, &v)| v != PanelColor::Black) {
         image[(k.y - max_y).abs() as usize][(k.x - min_x) as usize] = *v;
     }
 
@@ -394,12 +394,12 @@ fn print_image(robot: &EmergencyHullPaintingRobot) {
         for p in row {
             print!("{}", p);
         }
-        println!("");
+        println!();
     }
 }
 
 pub fn run() -> anyhow::Result<()> {
-    let painter = intcode::Memory::from_str(PUZZLE_INPUT)?;
+    let painter: intcode::Memory = PUZZLE_INPUT.parse()?;
 
     let mut runtime = tokio::runtime::Runtime::new()?;
 
@@ -408,7 +408,7 @@ pub fn run() -> anyhow::Result<()> {
     print_image(&robot);
 
     let mut robot = EmergencyHullPaintingRobot::default();
-    runtime.block_on(robot.run_painter(painter.clone(), PanelColor::White))?;
+    runtime.block_on(robot.run_painter(painter, PanelColor::White))?;
     print_image(&robot);
 
     Ok(())

@@ -100,7 +100,7 @@ impl ParameterModes {
             let mode = ParameterMode::from_value(self.0 % 10)
                 .expect("invalid parameter mode in pre-validated context");
             buf.push(mode);
-            self.0 = self.0 / 10;
+            self.0 /= 10;
         }
     }
 }

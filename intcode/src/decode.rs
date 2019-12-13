@@ -31,6 +31,7 @@ macro_rules! decode_impl {
         }
 
         let mut outputs: ArrayVec<[Output; Self::WRITE_PARAMS as usize]> = ArrayVec::new();
+        #[allow(clippy::range_plus_one)]
         for i in Self::READ_PARAMS..(Self::READ_PARAMS + Self::WRITE_PARAMS) {
             let param_addr = $pc.param(i);
             let value = $memory

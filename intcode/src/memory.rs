@@ -1,5 +1,5 @@
 use super::{error, Address, Word};
-use std::{io, mem};
+use std::{io, mem, str};
 
 /// An Intcode memory
 ///
@@ -9,14 +9,9 @@ pub struct Memory {
     data: Vec<Word>,
 }
 
-impl Memory {
-    /// Initializes Intcode memory from a vector of data
-    pub fn from_vec(data: Vec<Word>) -> Self {
-        Self { data }
-    }
+impl str::FromStr for Memory {
+    type Err = io::Error;
 
-    /// Initializes Intcode memory from a string
-    ///
     /// Expected format is a series of signed ASCII integers separated by
     /// commas. Whitespace is allowed between numbers and commas.
     ///
@@ -28,8 +23,8 @@ impl Memory {
     /// 99,
     /// 30,40,50
     /// ```
-    pub fn from_str(input: &str) -> io::Result<Memory> {
-        let data = input
+    fn from_str(s: &str) -> Result<Self, Self::Err> {
+        let data = s
             .split(',')
             .filter_map(|op| {
                 let trimmed = op.trim();
@@ -47,6 +42,13 @@ impl Memory {
 
         Ok(Self::from_vec(data))
     }
+}
+
+impl Memory {
+    /// Initializes Intcode memory from a vector of data
+    pub fn from_vec(data: Vec<Word>) -> Self {
+        Self { data }
+    }
 
     /// Initializes Intcode memory from an `io::Read`er
     ///
@@ -55,7 +57,7 @@ impl Memory {
         let mut raw_data = String::new();
         input.read_to_string(&mut raw_data)?;
 
-        Self::from_str(&raw_data)
+        raw_data.parse()
     }
 
     /// Initializes Intcode memory from an `io::BufRead`er
@@ -118,7 +120,7 @@ impl Memory {
         self.data
             .get(address.value())
             .copied()
-            .ok_or(error::OutOfBoundsAccess::new(address))
+            .ok_or_else(|| error::OutOfBoundsAccess::new(address))
     }
 
     /// Attempts to read a value from a given address
@@ -140,7 +142,7 @@ impl Memory {
         let sloc = self
             .data
             .get_mut(address.value())
-            .ok_or(error::OutOfBoundsAccess::new(address))?;
+            .ok_or_else(|| error::OutOfBoundsAccess::new(address))?;
         Ok(mem::replace(sloc, value))
     }
 
@@ -191,7 +193,8 @@ mod tests {
 
     #[test]
     fn check_str() -> Result<()> {
-        assert_eq!(EXPECTED, Memory::from_str(DATA)?.raw());
+        let actual: Memory = DATA.parse()?;
+        assert_eq!(EXPECTED, actual.raw());
 
         Ok(())
     }

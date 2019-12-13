@@ -16,7 +16,8 @@ log = { version = "0.4", features = [ "release_max_level_info" ] }
 num-integer = "0.1"
 regex = "1"
 structopt = "*"
-tokio = { version = "0.2", features = [ "rt-core", "sync" ] }
+termion = "*"
+tokio = { version = "0.2", features = [ "rt-core", "sync", "time" ] }
 
 [dev-dependencies]
 criterion = "0.3"

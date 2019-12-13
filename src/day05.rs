@@ -186,7 +186,7 @@ pub fn run_system_5_diagnostic(
 }
 
 pub fn run() -> Result<()> {
-    let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
+    let memory: intcode::Memory = PUZZLE_INPUT.parse()?;
 
     let sys1 = run_system_1_diagnostic(memory.clone())?;
 

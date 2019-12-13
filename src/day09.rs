@@ -94,7 +94,7 @@ pub fn run_boost(program: intcode::Memory) -> Result<intcode::Word, intcode::Exe
 }
 
 pub fn run() -> Result<()> {
-    let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
+    let memory: intcode::Memory = PUZZLE_INPUT.parse()?;
 
     let diagnostic = run_diagnostic(memory.clone())?;
     println!("Diagnostic result: {}", diagnostic);

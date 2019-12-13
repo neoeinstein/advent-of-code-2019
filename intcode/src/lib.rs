@@ -84,8 +84,8 @@ mod tests {
 
     fn verify_final_state_test(initial: &str, expected: &str) -> Result<()> {
         crate::init_logging();
-        let memory = Memory::from_str(initial)?;
-        let expected = Memory::from_str(expected)?;
+        let memory: Memory = initial.parse()?;
+        let expected: Memory = expected.parse()?;
 
         let exe = Executable::from(memory);
 
@@ -241,7 +241,7 @@ mod tests {
         crate::init_logging();
         const PROGRAM: &str = include_str!("../../inputs/input-05");
 
-        let memory = Memory::from_str(PROGRAM)?;
+        let memory: Memory = PROGRAM.parse()?;
 
         let mut exe = Executable::from(memory);
 
@@ -263,7 +263,7 @@ mod tests {
 
     fn run_program_test(program_data: &str, input: Word, expected: &[Word]) -> Result<()> {
         crate::init_logging();
-        let memory = Memory::from_str(program_data)?;
+        let memory: Memory = program_data.parse()?;
 
         let mut exe = Executable::from(memory);
 
@@ -305,12 +305,12 @@ mod tests {
         expected: &[Word],
     ) -> Result<()> {
         crate::init_logging();
-        let memory = Memory::from_str(program_data)?;
+        let memory: Memory = program_data.parse()?;
 
         let mut exe = super::AsyncExecutable::from(memory);
 
         exe.single_input(input);
-        let drain = exe.drain().to_vec();
+        let drain = exe.drain().into_vec();
 
         exe.execute().await?;
 

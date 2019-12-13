@@ -162,28 +162,24 @@ impl Image {
         let mut layers = self.layers();
         let foreground = layers.next().unwrap();
 
-        let image = layers.fold(foreground, |mask, mut back| {
+        layers.fold(foreground, |mask, mut back| {
             log::trace!("Current:\n{}", mask);
             back.apply_mask(mask);
             // std::thread::sleep(std::time::Duration::from_millis(500));
             back
-        });
-
-        image
+        })
     }
 
     pub fn resolve_back(&self) -> Layer {
         let mut layers = self.layers().rev();
         let background = layers.next().unwrap();
 
-        let image = layers.fold(background, |mut back, mask| {
+        layers.fold(background, |mut back, mask| {
             log::trace!("Current:\n{}", back);
             back.apply_mask(mask);
             // std::thread::sleep(std::time::Duration::from_millis(500));
             back
-        });
-
-        image
+        })
     }
 }
 
@@ -205,9 +201,8 @@ impl<'a> Layer<'a> {
     fn count_chars(&self) -> [u32; 3] {
         let mut counts = [0; 3];
         for b in self.data.as_ref() {
-            match counts.get_mut((b - b'0') as usize) {
-                Some(bucket) => *bucket += 1,
-                None => (),
+            if let Some(bucket) = counts.get_mut((b - b'0') as usize) {
+                *bucket += 1
             }
         }
         counts
@@ -223,7 +218,7 @@ impl<'a> Layer<'a> {
         }
     }
 
-    pub fn to_owned(self) -> Layer<'static> {
+    pub fn into_owned(self) -> Layer<'static> {
         Layer {
             dimensions: self.dimensions,
             data: Cow::Owned(self.data.into_owned()),
@@ -235,7 +230,7 @@ impl<'a> fmt::Display for Layer<'a> {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
         for (i, b) in self.data.iter().enumerate() {
             if i > 0 && (i % self.dimensions.0) == 0 {
-                writeln!(f, "")?;
+                writeln!(f)?;
             }
 
             let c = match b {

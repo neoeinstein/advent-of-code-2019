@@ -31,12 +31,7 @@ impl Buffer {
     }
 
     pub fn execute(mut self) -> Option<Word> {
-        loop {
-            let value = match self.rx.recv() {
-                Ok(v) => v,
-                Err(_) => break,
-            };
-
+        while let Ok(value) = self.rx.recv() {
             self.last_output = Some(value);
 
             // Ignore if the listener has stopped listening

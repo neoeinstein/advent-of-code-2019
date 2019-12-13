@@ -3,7 +3,7 @@ mod day02 {
     use criterion::{black_box, criterion_group, Criterion};
 
     pub fn part_1(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day02::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day02::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day02::part_1", |b| {
             b.iter(|| {
@@ -17,7 +17,7 @@ mod day02 {
     }
 
     pub fn part_2(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day02::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day02::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day02::part_2", |b| {
             b.iter(|| day02::search_for_noun_and_verb(black_box(memory.clone()), black_box(0)))
@@ -32,7 +32,7 @@ mod day05 {
     use criterion::{black_box, criterion_group, Criterion};
 
     pub fn part_1(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day05::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day05::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day05::part_1", |b| {
             b.iter(|| day05::run_system_1_diagnostic(black_box(memory.clone())))
@@ -40,7 +40,7 @@ mod day05 {
     }
 
     pub fn part_2(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day05::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day05::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day05::part_2", |b| {
             b.iter(|| day05::run_system_5_diagnostic(black_box(memory.clone())))
@@ -56,7 +56,7 @@ mod day07 {
 
     pub fn part_1(c: &mut Criterion) {
         let mut group = c.benchmark_group("day07::part_1");
-        let memory = std::sync::Arc::new(intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap());
+        let memory = std::sync::Arc::new(day07::PUZZLE_INPUT.parse().unwrap());
 
         group.bench_function("sync", |b| {
             b.iter(|| day07::find_best_phase_sequence(black_box(&memory)))
@@ -92,7 +92,7 @@ mod day07 {
 
     pub fn part_2(c: &mut Criterion) {
         let mut group = c.benchmark_group("day07::part_2");
-        let memory = std::sync::Arc::new(intcode::Memory::from_str(day07::PUZZLE_INPUT).unwrap());
+        let memory = std::sync::Arc::new(day07::PUZZLE_INPUT.parse().unwrap());
 
         group.bench_function("sync", |b| {
             b.iter(|| day07::find_best_phase_sequence_with_feedback(black_box(&memory)))
@@ -134,7 +134,7 @@ mod day09 {
     use criterion::{black_box, criterion_group, Criterion};
 
     pub fn part_1(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day09::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day09::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day09::part_1", |b| {
             b.iter(|| {
@@ -145,7 +145,7 @@ mod day09 {
     }
 
     pub fn part_2(c: &mut Criterion) {
-        let memory = intcode::Memory::from_str(day09::PUZZLE_INPUT).unwrap();
+        let memory: intcode::Memory = day09::PUZZLE_INPUT.parse().unwrap();
 
         c.bench_function("day09::part_2", |b| {
             b.iter(|| {

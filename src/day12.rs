@@ -826,7 +826,7 @@ mod tests {
         let positions = parse_input(EXAMPLE_INPUT_2)?;
         let field = MoonField::new(positions);
 
-        const EXPECTED: usize = 4686774924;
+        const EXPECTED: usize = 4_686_774_924;
 
         assert_eq!(field.cycle_time(), EXPECTED);
 

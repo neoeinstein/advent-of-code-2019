@@ -392,7 +392,7 @@ mod tests {
         let orbits = parse_input(super::PUZZLE_INPUT).unwrap();
 
         let actual = OrbitTree::from_orbits(orbits).checksum().unwrap();
-        const EXPECTED: usize = 453028;
+        const EXPECTED: usize = 453_028;
 
         assert_eq!(EXPECTED, actual);
     }

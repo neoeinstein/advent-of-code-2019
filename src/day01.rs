@@ -146,7 +146,7 @@ mod tests {
 
     #[test]
     fn calculate_fuel_100756() {
-        const MASS: usize = 100756;
+        const MASS: usize = 100_756;
         const EXPECTED: usize = 33583;
 
         let actual = calculate_fuel(MASS);
@@ -186,7 +186,7 @@ mod tests {
 
     #[test]
     fn calculate_module_fuel_100756() {
-        const MASS: usize = 100756;
+        const MASS: usize = 100_756;
         const EXPECTED: usize = 50346;
 
         let actual = calculate_module_fuel(MASS);

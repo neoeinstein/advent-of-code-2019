@@ -428,9 +428,7 @@ async fn run_amplifier_sequence_async(
     exec_e.await??;
     let result = exec_buf.await?;
 
-    result.ok_or(anyhow::anyhow!(
-        "amplifier sequence did not produce a value"
-    ))
+    result.ok_or_else(|| anyhow::anyhow!("amplifier sequence did not produce a value"))
 }
 
 pub async fn permute_async(
@@ -440,12 +438,15 @@ pub async fn permute_async(
     permute_impl_async(memory, phase_sequence, 0).await
 }
 
+type PinBoxFuturePermutation = std::pin::Pin<
+    Box<dyn std::future::Future<Output = Result<([intcode::Word; 5], intcode::Word)>>>,
+>;
+
 fn permute_impl_async(
     memory: Arc<intcode::Memory>,
     mut phase_sequence: [intcode::Word; 5],
     start: usize,
-) -> std::pin::Pin<Box<dyn std::future::Future<Output = Result<([intcode::Word; 5], intcode::Word)>>>>
-{
+) -> PinBoxFuturePermutation {
     Box::pin(async move {
         if start == 5 {
             let result = run_amplifier_sequence_async(&memory, phase_sequence).await?;
@@ -481,7 +482,7 @@ pub async fn find_best_phase_sequence_with_feedback_async(
 }
 
 pub fn run() -> Result<()> {
-    let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
+    let memory = PUZZLE_INPUT.parse()?;
 
     let (best_sequence, max) = find_best_phase_sequence(&memory)?;
     println!("Best sequence: {:?}, end value = {}", best_sequence, max);
@@ -493,7 +494,7 @@ pub fn run() -> Result<()> {
 }
 
 pub async fn run_async() -> Result<()> {
-    let memory = Arc::new(intcode::Memory::from_str(PUZZLE_INPUT)?);
+    let memory = Arc::new(PUZZLE_INPUT.parse()?);
 
     let (best_sequence, max) = find_best_phase_sequence_async(Arc::clone(&memory)).await?;
     println!("Best sequence: {:?}, end value = {}", best_sequence, max);
@@ -520,7 +521,7 @@ mod tests {
         const PROGRAM: &str = "3,15,3,16,1002,16,10,16,1,16,15,15,4,15,99,0,0";
         const PHASES: &[intcode::Word; 5] = &[4, 3, 2, 1, 0];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = run_amplifier_sequence(&memory, *PHASES)?;
         const EXPECTED: intcode::Word = 43210;
@@ -537,7 +538,7 @@ mod tests {
                                101,5,23,23,1,24,23,23,4,23,99,0,0";
         const PHASES: &[intcode::Word; 5] = &[0, 1, 2, 3, 4];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = run_amplifier_sequence(&memory, *PHASES)?;
         const EXPECTED: intcode::Word = 54321;
@@ -554,7 +555,7 @@ mod tests {
                                1002,33,7,33,1,33,31,31,1,32,31,31,4,31,99,0,0,0";
         const PHASES: &[intcode::Word; 5] = &[1, 0, 4, 3, 2];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = run_amplifier_sequence(&memory, *PHASES)?;
         const EXPECTED: intcode::Word = 65210;
@@ -571,10 +572,10 @@ mod tests {
                                27,4,27,1001,28,-1,28,1005,28,6,99,0,0,5";
         const PHASES: [intcode::Word; 5] = [9, 8, 7, 6, 5];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = run_amplifier_sequence(&memory, PHASES)?;
-        const EXPECTED: intcode::Word = 139629729;
+        const EXPECTED: intcode::Word = 139_629_729;
 
         assert_eq!(EXPECTED, actual);
 
@@ -589,7 +590,7 @@ mod tests {
                                53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10";
         const PHASES: [intcode::Word; 5] = [9, 7, 8, 5, 6];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = run_amplifier_sequence(&memory, PHASES)?;
         const EXPECTED: intcode::Word = 18216;
@@ -607,7 +608,7 @@ mod tests {
                                53,1001,56,-1,56,1005,56,6,99,0,0,0,0,10";
         const PHASES: [intcode::Word; 5] = [9, 7, 8, 5, 6];
 
-        let memory = intcode::Memory::from_str(PROGRAM)?;
+        let memory = PROGRAM.parse()?;
 
         let actual = super::run_amplifier_sequence_async(&memory, PHASES).await?;
         const EXPECTED: intcode::Word = 18216;

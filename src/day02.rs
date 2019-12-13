@@ -183,7 +183,7 @@ pub fn search_for_noun_and_verb(
 }
 
 pub fn run() -> Result<()> {
-    let memory = intcode::Memory::from_str(PUZZLE_INPUT)?;
+    let memory: intcode::Memory = PUZZLE_INPUT.parse()?;
 
     let output = run_with_specific_state(memory.clone(), 12, 2)?;
     println!("Diagnostic: (12, 02): {}", output);
