@@ -621,15 +621,15 @@ impl MoonField {
     }
 
     fn x(&self) -> Vec<Axis> {
-        self.moons.iter().cloned().map(|m| m.x).collect()
+        self.moons.iter().copied().map(|m| m.x).collect()
     }
 
     fn y(&self) -> Vec<Axis> {
-        self.moons.iter().cloned().map(|m| m.y).collect()
+        self.moons.iter().copied().map(|m| m.y).collect()
     }
 
     fn z(&self) -> Vec<Axis> {
-        self.moons.iter().cloned().map(|m| m.z).collect()
+        self.moons.iter().copied().map(|m| m.z).collect()
     }
 
     #[cfg(test)]
