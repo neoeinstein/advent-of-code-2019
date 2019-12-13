@@ -10,9 +10,10 @@ edition = "2018"
 anyhow = "1"
 env_logger = "0.7"
 intcode = { path = "./intcode" }
+itertools = "0.8"
 lazy_static = "1"
 log = { version = "0.4", features = [ "release_max_level_info" ] }
-num = "*"
+num-integer = "0.1"
 regex = "1"
 structopt = "*"
 tokio = { version = "0.2", features = [ "rt-core", "sync" ] }

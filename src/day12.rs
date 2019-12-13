@@ -349,7 +349,7 @@
 //! previous state?
 
 use lazy_static::lazy_static;
-use num::Integer;
+use num_integer::Integer;
 use regex::Regex;
 
 pub const PUZZLE_INPUT: &str = include_str!("../inputs/input-12");

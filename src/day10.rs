@@ -236,7 +236,7 @@
 //! do you get if you multiply its X coordinate by 100 and then add its Y
 //! coordinate? (For example, 8,2 becomes 802.)
 
-use num::Integer;
+use num_integer::Integer;
 use std::{
     cmp::{Ord, Ordering, PartialOrd},
     collections::{HashMap, HashSet, VecDeque},
