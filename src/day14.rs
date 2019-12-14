@@ -122,9 +122,22 @@
 //!
 //! Given the list of reactions in your puzzle input, what is the minimum amount
 //! of ORE required to produce exactly 1 FUEL?
+//!
+//! ## Part Two
+//!
+//! After collecting ORE for a while, you check your cargo hold: 1 trillion
+//! (1000000000000) units of ORE.
+//!
+//! With that much ore, given the examples above:
+//!
+//! * The 13312 ORE-per-FUEL example could produce 82892753 FUEL.
+//! * The 180697 ORE-per-FUEL example could produce 5586022 FUEL.
+//! * The 2210736 ORE-per-FUEL example could produce 460664 FUEL.
+//!
+//! Given 1 trillion ORE, what is the maximum amount of FUEL you can produce?
 
 use anyhow::{Error, Result};
-use std::str::FromStr;
+use std::{cmp::Ordering, str::FromStr};
 
 const PUZZLE_INPUT: &str = include_str!("../inputs/input-14");
 
@@ -194,15 +207,6 @@ impl AsRef<str> for ReactantName {
     }
 }
 
-impl Reactant {
-    fn fuel() -> Self {
-        Self {
-            name: ReactantName(String::from("FUEL")),
-            amount: 1,
-        }
-    }
-}
-
 impl FromStr for Reactant {
     type Err = Error;
     fn from_str(s: &str) -> Result<Self, Self::Err> {
@@ -245,56 +249,94 @@ fn parse_input(input: &str) -> Result<Vec<Reaction>> {
     Ok(reactions)
 }
 
-fn find_ore_requirement(reactions: Vec<Reaction>, fuel_needed: usize) -> usize {
+fn find_most_fuel_for_ore(reactions: &[Reaction], ore_available: usize) -> usize {
+    let mut low = 0;
+    let mut high = 1_000_000_000_000;
+    while low < high {
+        log::info!("high = {}; low = {}", high, low);
+        if high == low + 1 {
+            let req = find_ore_requirement(reactions, high);
+            return if req <= ore_available { high } else { low };
+        }
+
+        let mid = (high + low) / 2;
+
+        let req = find_ore_requirement(reactions, mid);
+        log::info!("Ore required for {} fuel: {}", mid, req);
+
+        match req.cmp(&ore_available) {
+            Ordering::Less => low = mid,
+            Ordering::Equal => return mid,
+            Ordering::Greater => high = mid,
+        }
+    }
+
+    low
+}
+
+fn find_ore_requirement(reactions: &[Reaction], fuel_needed: usize) -> usize {
     use std::collections::HashMap;
     let reaction_map: HashMap<_, _> = reactions
-        .into_iter()
-        .map(|react| (react.output.name, (react.inputs, react.output.amount)))
+        .iter()
+        .map(|react| {
+            (
+                react.output.name.as_ref(),
+                (react.inputs.clone(), react.output.amount),
+            )
+        })
         .collect();
 
-    let mut in_store = HashMap::<ReactantName, isize>::new();
+    let mut in_store = HashMap::<&str, isize>::new();
 
-    in_store.insert(ReactantName(String::from("FUEL")), -(fuel_needed as isize));
+    in_store.insert("FUEL", -(fuel_needed as isize));
 
     loop {
         let (inputs, mul) = {
-            if let Some((need, v)) = in_store
+            if let Some((need, req)) = in_store
                 .iter_mut()
-                .filter(|(k, &mut x)| x < 0 && k.as_ref() != "ORE")
+                .filter(|(&k, &mut x)| x < 0 && k != "ORE")
                 .next()
             {
-                log::debug!("Processing {:?} for {}", need, v);
+                log::debug!("Processing {:?} for {}", need, req);
                 let (ins, amt) = &reaction_map[need];
-                *v += *amt as isize;
-                (ins, *amt as isize)
+                let produced = *amt as isize;
+                let mul = (-*req + produced - 1) / produced;
+                *req += produced as isize * mul;
+                (ins, mul as isize)
             } else {
                 break;
             }
         };
         log::debug!("Inputs {:?}, multiplier {}", inputs, 1);
         for input in inputs {
-            let stock = in_store.entry(input.name.clone()).or_default();
-            *stock -= input.amount as isize;
+            let stock = in_store.entry(input.name.as_ref()).or_default();
+            *stock -= input.amount as isize * mul;
         }
         log::debug!("State {:?}", in_store);
     }
 
-    in_store[&ReactantName(String::from("ORE"))].abs() as usize
+    in_store["ORE"].abs() as usize
 }
 
 pub fn run() -> Result<()> {
     let reactions = parse_input(PUZZLE_INPUT)?;
 
-    let actual = find_ore_requirement(reactions, 1);
+    let ore_required = find_ore_requirement(&reactions, 1);
 
-    println!("Ore requirements for 1 fuel: {}", actual);
+    println!("Ore requirements for 1 fuel: {}", ore_required);
+
+    const ORE_AVAILABLE: usize = 1_000_000_000_000;
+
+    let most_fuel = find_most_fuel_for_ore(&reactions, ORE_AVAILABLE);
+
+    println!("Fuel producable from {} ore: {}", ORE_AVAILABLE, most_fuel);
 
     Ok(())
 }
 
 #[cfg(test)]
 mod tests {
-    use super::{find_ore_requirement, parse_input};
+    use super::{find_most_fuel_for_ore, find_ore_requirement, parse_input};
     use anyhow::Result;
 
     const EXAMPLE_1: &str = "
@@ -311,7 +353,7 @@ mod tests {
         crate::init_logging();
         let reactions = parse_input(EXAMPLE_1)?;
 
-        let actual = find_ore_requirement(reactions, 1);
+        let actual = find_ore_requirement(&reactions, 1);
 
         assert_eq!(actual, EXAMPLE_1_ORE);
 
@@ -333,7 +375,7 @@ mod tests {
         crate::init_logging();
         let reactions = parse_input(EXAMPLE_2)?;
 
-        let actual = find_ore_requirement(reactions, 1);
+        let actual = find_ore_requirement(&reactions, 1);
 
         assert_eq!(actual, EXAMPLE_2_ORE);
 
@@ -357,9 +399,21 @@ mod tests {
         crate::init_logging();
         let reactions = parse_input(EXAMPLE_3)?;
 
-        let actual = find_ore_requirement(reactions, 1);
+        let actual = find_ore_requirement(&reactions, 1);
 
         assert_eq!(actual, EXAMPLE_3_ORE);
+
+        Ok(())
+    }
+
+    #[test]
+    fn find_max_fuel_example_3() -> Result<()> {
+        crate::init_logging();
+        let reactions = parse_input(EXAMPLE_3)?;
+
+        let actual = find_most_fuel_for_ore(&reactions, 1_000_000_000_000);
+
+        assert_eq!(actual, 82_892_753);
 
         Ok(())
     }
@@ -384,9 +438,21 @@ mod tests {
         crate::init_logging();
         let reactions = parse_input(EXAMPLE_4)?;
 
-        let actual = find_ore_requirement(reactions, 1);
+        let actual = find_ore_requirement(&reactions, 1);
 
         assert_eq!(actual, EXAMPLE_4_ORE);
+
+        Ok(())
+    }
+
+    #[test]
+    fn find_max_fuel_example_4() -> Result<()> {
+        crate::init_logging();
+        let reactions = parse_input(EXAMPLE_4)?;
+
+        let actual = find_most_fuel_for_ore(&reactions, 1_000_000_000_000);
+
+        assert_eq!(actual, 5_586_022);
 
         Ok(())
     }
@@ -416,9 +482,21 @@ mod tests {
         crate::init_logging();
         let reactions = parse_input(EXAMPLE_5)?;
 
-        let actual = find_ore_requirement(reactions, 1);
+        let actual = find_ore_requirement(&reactions, 1);
 
         assert_eq!(actual, EXAMPLE_5_ORE);
+
+        Ok(())
+    }
+
+    #[test]
+    fn find_max_fuel_example_5() -> Result<()> {
+        crate::init_logging();
+        let reactions = parse_input(EXAMPLE_5)?;
+
+        let actual = find_most_fuel_for_ore(&reactions, 1_000_000_000_000);
+
+        assert_eq!(actual, 460_664);
 
         Ok(())
     }
