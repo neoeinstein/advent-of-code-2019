@@ -278,7 +278,10 @@ impl fmt::Display for Field {
             f,
             "{}Ball: {} {} {}, Paddle: {}",
             clear::CurrentLine,
-            self.ball_dir, self.ball_vert, self.ball, self.paddle
+            self.ball_dir,
+            self.ball_vert,
+            self.ball,
+            self.paddle
         )?;
         Ok(())
     }
