@@ -292,9 +292,7 @@ fn find_ore_requirement(reactions: &[Reaction], fuel_needed: usize) -> usize {
 
     loop {
         let (inputs, mul) = {
-            if let Some((need, req)) = in_store
-                .iter_mut()
-                .find(|(&k, &mut x)| x < 0 && k != "ORE")
+            if let Some((need, req)) = in_store.iter_mut().find(|(&k, &mut x)| x < 0 && k != "ORE")
             {
                 log::debug!("Processing {:?} for {}", need, req);
                 let (ins, amt) = &reaction_map[need];
