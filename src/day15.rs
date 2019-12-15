@@ -41,43 +41,31 @@
 //! Then, the initial state looks like this:
 //!
 //! ```text
-//! 
-//!
 //!    D
-//!
-//!
 //! ```
 //!
 //! To make the droid go north, send it 1. If it replies with 0, you know that
 //! location is a wall and that the droid didn't move:
 //!
 //! ```text
-//! 
 //!    #
 //!    D
-//!
-//!
 //! ```
 //!
 //! To move east, send 4; a reply of 1 means the movement was successful:
 //!
 //! ```text
-//! 
 //!    #
 //!    .D
-//!
-//!
 //! ```
 //!
 //! Then, perhaps attempts to move north (1), south (2), and east (4) are all
 //! met with replies of 0:
 //!
 //! ```text
-//! 
 //!    ##
 //!    .D#
 //!     #
-//!
 //! ```
 //!
 //! Now, you know the repair droid is in a dead end. Backtrack with 3 (which you
@@ -85,7 +73,6 @@
 //! open):
 //!
 //! ```text
-//! 
 //!    ##
 //!    D.#
 //!     #
@@ -95,7 +82,6 @@
 //! again (2) gets a reply of 0, and then west (3) gets a reply of 2:
 //!
 //! ```text
-//! 
 //!    ##
 //!   #..#
 //!   D.#
@@ -108,6 +94,75 @@
 //!
 //! What is the fewest number of movement commands required to move the repair
 //! droid from its starting position to the location of the oxygen system?
+//!
+//! ## Part Two
+//!
+//! You quickly repair the oxygen system; oxygen gradually fills the area.
+//!
+//! Oxygen starts in the location containing the repaired oxygen system. It
+//! takes one minute for oxygen to spread to all open locations that are
+//! adjacent to a location that already contains oxygen. Diagonal locations are
+//! not adjacent.
+//!
+//! In the example above, suppose you've used the droid to explore the area
+//! fully and have the following map (where locations that currently contain
+//! oxygen are marked O):
+//!
+//! ```text
+//!  ##
+//! #..##
+//! #.#..#
+//! #.O.#
+//!  ###
+//! ```
+//!
+//! Initially, the only location which contains oxygen is the location of the
+//! repaired oxygen system. However, after one minute, the oxygen spreads to all
+//! open (.) locations that are adjacent to a location containing oxygen:
+//!
+//! ```text
+//!  ##
+//! #..##
+//! #.#..#
+//! #OOO#
+//!  ###
+//! ```
+//!
+//! After a total of two minutes, the map looks like this:
+//!
+//! ```text
+//!  ##
+//! #..##
+//! #O#O.#
+//! #OOO#
+//!  ###
+//! ```
+//!
+//! After a total of three minutes:
+//!
+//! ```text
+//!  ##
+//! #O.##
+//! #O#OO#
+//! #OOO#
+//!  ###
+//! ```
+//!
+//! And finally, the whole region is full of oxygen after a total of four
+//! minutes:
+//!
+//! ```text
+//!  ##
+//! #OO##
+//! #O#OO#
+//! #OOO#
+//!  ###
+//! ```
+//!
+//! So, in this example, all locations contain oxygen after 4 minutes.
+//!
+//! Use the repair droid to get a complete map of the area. How many minutes
+//! will it take to fill with oxygen?
 
 use anyhow::Result;
 use petgraph::prelude::*;
@@ -186,32 +241,14 @@ impl From<Orientation> for intcode::Word {
 
 impl fmt::Display for Orientation {
     fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        match self {
-            Orientation::North => write!(
-                f,
-                "{}North{}",
-                color::Fg(color::Red),
-                color::Fg(color::Reset)
-            ),
-            Orientation::South => write!(
-                f,
-                "{}South{}",
-                color::Fg(color::Green),
-                color::Fg(color::Reset)
-            ),
-            Orientation::West => write!(
-                f,
-                "{}West{}",
-                color::Fg(color::Yellow),
-                color::Fg(color::Reset)
-            ),
-            Orientation::East => write!(
-                f,
-                "{}East{}",
-                color::Fg(color::Cyan),
-                color::Fg(color::Reset)
-            ),
-        }
+        let dir = match self {
+            Orientation::North => "North",
+            Orientation::South => "South",
+            Orientation::West => "West",
+            Orientation::East => "East",
+        };
+
+        f.write_str(dir)
     }
 }
 
@@ -244,6 +281,17 @@ impl TryFrom<intcode::Word> for NodeType {
     }
 }
 
+impl fmt::Display for NodeType {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        let ty = match self {
+            NodeType::Wall => "Wall",
+            NodeType::Empty => "",
+            NodeType::Oxygen => "Oxygen"
+        };
+        f.write_str(ty)
+    }
+}
+
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
 enum Movement {
     Blocked,
@@ -260,7 +308,7 @@ impl From<NodeType> for Movement {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
+#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
 struct Position2D {
     x: isize,
     y: isize,
@@ -268,6 +316,12 @@ struct Position2D {
 
 impl Position2D {
     const ORIGIN: Self = Position2D { x: 0, y: 0 };
+}
+
+impl fmt::Display for Position2D {
+    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
+        write!(f, "({}, {})", self.x, self.y)
+    }
 }
 
 impl std::ops::Add<Orientation> for Position2D {
@@ -295,55 +349,30 @@ impl std::ops::AddAssign<Orientation> for Position2D {
     }
 }
 
-#[derive(Clone, Copy, Debug)]
-struct NodePosition {
-    position: Position2D,
-    node_type: NodeType,
-}
-
-impl std::hash::Hash for NodePosition {
-    fn hash<H: std::hash::Hasher>(&self, h: &mut H) {
-        std::hash::Hash::hash(&self.position, h)
-    }
-}
-
-impl PartialEq for NodePosition {
-    fn eq(&self, other: &Self) -> bool {
-        self.position.eq(&other.position)
-    }
-}
-
-impl Eq for NodePosition {}
-
-impl Ord for NodePosition {
-    fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        let xord = self.position.x.cmp(&other.position.x);
-        if xord == std::cmp::Ordering::Equal {
-            self.position.y.cmp(&other.position.y)
-        } else {
-            xord
-        }
-    }
-}
-
-impl PartialOrd for NodePosition {
-    fn partial_cmp(&self, other: &Self) -> Option<std::cmp::Ordering> {
-        Some(self.cmp(other))
-    }
-}
-
 #[derive(Clone, Debug, Default)]
 struct RepairDroid {
-    map: UnGraphMap<NodePosition, Orientation>,
+    map: UnGraphMap<Position2D, Orientation>,
 }
 
 impl RepairDroid {
-    fn min_steps_to(&self, goal: NodeType, start: Position2D) -> Option<usize> {
-        let start = NodePosition {
-            position: start,
-            node_type: NodeType::Empty,
-        };
-        petgraph::algo::astar(&self.map, start, move |f| f.node_type == goal, |_| 1, |_| 0)
+    #[allow(dead_code)]
+    fn dot_viz(&self) {
+        use petgraph::dot::Dot;
+
+        println!("{}", Dot::new(&self.map));
+    }
+
+    fn max_distance_from(&self, start: Position2D) -> Option<usize> {
+        let distances = petgraph::algo::dijkstra(&self.map, start, None, |_| 1);
+        println!("Distances from {}: {:#?}", start, distances);
+        distances
+            .values()
+            .copied()
+            .max_by(|last_dist, next_dist| last_dist.cmp(next_dist))
+    }
+
+    fn min_steps_to(&self, start: Position2D, goal: Position2D) -> Option<usize> {
+        petgraph::algo::astar(&self.map, start, move |f| f == goal, |_| 1, |_| 0)
             .map(|(k, _path)| k)
     }
 
@@ -353,16 +382,16 @@ impl RepairDroid {
         mut camera: Receiver<intcode::Word>,
     ) -> anyhow::Result<Option<Position2D>> {
         let mut visited = std::collections::HashSet::new();
+        let mut walls = std::collections::HashSet::new();
         let mut position = Position2D::ORIGIN;
-        let mut current_node = self.map.add_node(NodePosition {
-            position,
-            node_type: NodeType::Empty,
-        });
         let mut oriented = Orientation::North;
-        let mut movement_stack: Vec<(Orientation, NodePosition)> = Vec::new();
+        let mut movement_stack: Vec<(Orientation, Position2D)> = Vec::new();
         let mut oxygen = None;
         let mut backtrack = false;
+
+        self.map.add_node(position);
         visited.insert(position);
+
         loop {
             if backtrack {
                 if let Some((orient, prev)) = movement_stack.pop() {
@@ -383,8 +412,7 @@ impl RepairDroid {
 
                     backtrack = false;
                     oriented = orient;
-                    current_node = prev;
-                    position = prev.position;
+                    position = prev;
                 } else {
                     log::info!("Finished search; halting");
                     break;
@@ -403,12 +431,8 @@ impl RepairDroid {
                 };
 
                 let next_pos = position + oriented;
-                let node_data = NodePosition {
-                    position: next_pos,
-                    node_type: move_result,
-                };
-                let node = self.map.add_node(node_data);
-                self.map.add_edge(current_node, node, oriented);
+                self.map.add_node(next_pos);
+                self.map.add_edge(position, next_pos, oriented);
                 visited.insert(next_pos);
 
                 if move_result == NodeType::Oxygen {
@@ -416,19 +440,27 @@ impl RepairDroid {
                 }
 
                 if move_result.movement() == Movement::Open {
-                    movement_stack.push((oriented, current_node));
+                    movement_stack.push((oriented, position));
                     position += oriented;
                     oriented = Orientation::North;
-                    current_node = node;
+                } else {
+                    walls.insert(next_pos);
                 }
             }
 
-            while visited.contains(&(position + oriented)) {
+            let mut next = position + oriented;
+            while visited.contains(&next) {
+                if !walls.contains(&next) {
+                    if !self.map.contains_edge(position, next) {
+                        self.map.add_edge(position, next, oriented);
+                    }
+                }
                 if oriented == Orientation::North.left() {
                     backtrack = true;
                     break;
                 } else {
                     oriented.turn_right();
+                    next = position + oriented;
                 }
             }
         }
@@ -461,13 +493,23 @@ pub fn run() -> Result<()> {
     let mut runtime = tokio::runtime::Runtime::new()?;
 
     let mut robot = RepairDroid::default();
-    runtime
+    let oxygen = runtime
         .block_on(robot.run_droid(droid))?
         .expect("oxygen to be found");
+
+    println!("The oxygen is at {}", oxygen);
+
     let steps_to_oxygen = robot
-        .min_steps_to(NodeType::Oxygen, Position2D::ORIGIN)
+        .min_steps_to(Position2D::ORIGIN, oxygen)
         .expect("path between origin and oxygen");
     println!("Minimum steps to the oxygen: {}", steps_to_oxygen);
+
+    // robot.dot_viz();
+
+    let time_to_reoxygenate = robot
+        .max_distance_from(oxygen)
+        .unwrap() - 1;
+    println!("Time to reoxygenate zone: {}", time_to_reoxygenate);
 
     Ok(())
 }
