@@ -123,6 +123,7 @@
 //! letters. After starting the robot on a single white panel instead, what
 //! registration identifier does it paint on your hull?
 
+use super::{Orientation, Position2D};
 use std::{collections::HashMap, convert::TryFrom, fmt, ops};
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
@@ -172,26 +173,6 @@ impl TryFrom<intcode::Word> for PanelColor {
 }
 
 #[derive(Clone, Copy, Debug)]
-enum Orientation {
-    North,
-    East,
-    South,
-    West,
-}
-
-impl fmt::Display for Orientation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let value = match self {
-            Orientation::North => "^",
-            Orientation::East => ">",
-            Orientation::South => "v",
-            Orientation::West => "<",
-        };
-        f.write_str(value)
-    }
-}
-
-#[derive(Clone, Copy, Debug)]
 enum Turn {
     Left,
     Right,
@@ -234,53 +215,18 @@ impl TryFrom<intcode::Word> for Turn {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq)]
-struct Position {
-    x: isize,
-    y: isize,
-}
-
-impl Position {
-    const ORIGIN: Self = Position { x: 0, y: 0 };
-}
-
-impl ops::Add<Orientation> for Position {
-    type Output = Self;
-    fn add(self, o: Orientation) -> Self::Output {
-        let mut new = self;
-        match o {
-            Orientation::North => new.y += 1,
-            Orientation::South => new.y -= 1,
-            Orientation::East => new.x += 1,
-            Orientation::West => new.x -= 1,
-        }
-        new
-    }
-}
-
-impl ops::AddAssign<Orientation> for Position {
-    fn add_assign(&mut self, o: Orientation) {
-        match o {
-            Orientation::North => self.y += 1,
-            Orientation::South => self.y -= 1,
-            Orientation::East => self.x += 1,
-            Orientation::West => self.x -= 1,
-        }
-    }
-}
-
 #[derive(Debug)]
 struct EmergencyHullPaintingRobot {
-    current: Position,
+    current: Position2D,
     orientation: Orientation,
-    visited: HashMap<Position, PanelColor>,
+    visited: HashMap<Position2D, PanelColor>,
     strokes: usize,
 }
 
 impl Default for EmergencyHullPaintingRobot {
     fn default() -> Self {
         Self {
-            current: Position::ORIGIN,
+            current: Position2D::ORIGIN,
             orientation: Orientation::North,
             visited: HashMap::new(),
             strokes: 0,
@@ -349,14 +295,14 @@ impl EmergencyHullPaintingRobot {
 }
 
 fn convert_painted_panels_to_image(
-    painted: &HashMap<Position, PanelColor>,
+    painted: &HashMap<Position2D, PanelColor>,
 ) -> Vec<Vec<PanelColor>> {
     let (min_x, max_x, min_y, max_y) = painted.keys().fold(
         (
-            isize::max_value(),
-            isize::min_value(),
-            isize::max_value(),
-            isize::min_value(),
+            i64::max_value(),
+            i64::min_value(),
+            i64::max_value(),
+            i64::min_value(),
         ),
         |(min_x, max_x, min_y, max_y), p| {
             (

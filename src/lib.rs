@@ -16,6 +16,12 @@ pub mod day13;
 pub mod day14;
 pub mod day15;
 
+mod orientation;
+mod position;
+
+use orientation::Orientation;
+use position::Position2D;
+
 fn get_input_filename() -> Option<PathBuf> {
     let in_file = env::args().nth(1)?;
     if in_file == "-" {

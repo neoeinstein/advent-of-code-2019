@@ -51,6 +51,7 @@
 //! Beat the game by breaking all the blocks. What is your score after the last
 //! block is broken?
 
+use super::Position2D;
 use itertools::Itertools;
 use std::{cmp::Ordering, collections::HashMap, convert::TryFrom, fmt};
 use termion::{clear, color, cursor, style};
@@ -117,18 +118,6 @@ impl fmt::Display for Tile {
                 style::Reset
             ),
         }
-    }
-}
-
-#[derive(Clone, Copy, Debug, Default, Hash, PartialEq, Eq)]
-struct Position2D {
-    x: intcode::Word,
-    y: intcode::Word,
-}
-
-impl fmt::Display for Position2D {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
     }
 }
 
@@ -302,7 +291,7 @@ impl Field {
     fn move_paddle_to(&mut self, x: intcode::Word) {
         let idx = self.idx(self.paddle);
         self.tiles[idx] = Tile::Empty;
-        self.paddle = Position2D { x, ..self.paddle };
+        self.paddle = Position2D::new(x, self.paddle.y);
         let new_idx = self.idx(self.paddle);
         self.tiles[new_idx] = Tile::Paddle;
     }
@@ -323,18 +312,12 @@ impl Field {
             self.ball_dir
         );
 
-        let next_pos = Position2D {
-            x: self.ball.x + self.ball_dir.offset(),
-            y: self.ball.y + self.ball_vert.offset(),
-        };
-        let above_pos = Position2D {
-            x: self.ball.x,
-            y: self.ball.y + self.ball_vert.offset(),
-        };
-        let side_pos = Position2D {
-            x: self.ball.x + self.ball_dir.offset(),
-            y: self.ball.y,
-        };
+        let next_pos = Position2D::new(
+            self.ball.x + self.ball_dir.offset(),
+            self.ball.y + self.ball_vert.offset(),
+        );
+        let above_pos = Position2D::new(self.ball.x, self.ball.y + self.ball_vert.offset());
+        let side_pos = Position2D::new(self.ball.x + self.ball_dir.offset(), self.ball.y);
 
         let next_tile = self.get_tile(next_pos);
         let above_tile = self.get_tile(above_pos);
@@ -476,7 +459,7 @@ async fn construct_field(display: &mut mpsc::Receiver<intcode::Word>) -> anyhow:
             max_x = max_x.max(x);
             let tile = Tile::try_from(t)?;
 
-            let pos = Position2D { x, y };
+            let pos = Position2D::new(x, y);
 
             match tile {
                 Tile::Ball => ball = Some(pos),
@@ -579,7 +562,7 @@ async fn run_game(mut game: intcode::Memory) -> anyhow::Result<intcode::Word> {
             field.score = t;
             log::info!("Score updated: {}", field.score);
         } else {
-            let pos = Position2D { x, y };
+            let pos = Position2D::new(x, y);
 
             let tile = Tile::try_from(t)?;
             last = tile;
@@ -617,10 +600,7 @@ pub fn run() -> anyhow::Result<()> {
 
     let mut blocks = HashMap::<Position2D, Tile>::new();
     blocks.extend(data.into_iter().chunks(3).into_iter().map(|mut c| {
-        let position = Position2D {
-            x: c.next().unwrap(),
-            y: c.next().unwrap(),
-        };
+        let position = Position2D::new(c.next().unwrap(), c.next().unwrap());
         let tile = Tile::try_from(c.next().unwrap()).unwrap();
         (position, tile)
     }));

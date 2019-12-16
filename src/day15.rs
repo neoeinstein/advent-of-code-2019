@@ -164,91 +164,20 @@
 //! Use the repair droid to get a complete map of the area. How many minutes
 //! will it take to fill with oxygen?
 
+use super::{Orientation, Position2D};
 use anyhow::Result;
 use petgraph::prelude::*;
 use std::{convert::TryFrom, fmt};
-use termion::color;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
 
 const PUZZLE_INPUT: &str = include_str!("../inputs/input-15");
 
-#[derive(Clone, Copy, Debug, PartialEq, Eq)]
-enum Orientation {
-    North,
-    South,
-    West,
-    East,
-}
-
-impl Orientation {
-    fn left(self) -> Self {
-        match self {
-            Orientation::North => Orientation::West,
-            Orientation::South => Orientation::East,
-            Orientation::West => Orientation::South,
-            Orientation::East => Orientation::North,
-        }
-    }
-
-    fn turn_left(&mut self) {
-        *self = self.left()
-    }
-
-    fn right(self) -> Self {
-        match self {
-            Orientation::North => Orientation::East,
-            Orientation::South => Orientation::West,
-            Orientation::West => Orientation::North,
-            Orientation::East => Orientation::South,
-        }
-    }
-
-    fn turn_right(&mut self) {
-        *self = self.right()
-    }
-
-    fn reverse(self) -> Self {
-        match self {
-            Orientation::North => Orientation::South,
-            Orientation::South => Orientation::North,
-            Orientation::West => Orientation::East,
-            Orientation::East => Orientation::West,
-        }
-    }
-
-    fn turn_around(&mut self) {
-        *self = self.reverse()
-    }
-}
-
-impl std::ops::Neg for Orientation {
-    type Output = Self;
-    fn neg(self) -> Self::Output {
-        self.reverse()
-    }
-}
-
-impl From<Orientation> for intcode::Word {
-    fn from(p: Orientation) -> Self {
-        match p {
-            Orientation::North => 1,
-            Orientation::South => 2,
-            Orientation::West => 3,
-            Orientation::East => 4,
-        }
-    }
-}
-
-impl fmt::Display for Orientation {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        let dir = match self {
-            Orientation::North => "North",
-            Orientation::South => "South",
-            Orientation::West => "West",
-            Orientation::East => "East",
-        };
-
-        f.write_str(dir)
+fn into_movement_command(p: Orientation) -> intcode::Word {
+    match p {
+        Orientation::North => 1,
+        Orientation::South => 2,
+        Orientation::West => 3,
+        Orientation::East => 4,
     }
 }
 
@@ -286,7 +215,7 @@ impl fmt::Display for NodeType {
         let ty = match self {
             NodeType::Wall => "Wall",
             NodeType::Empty => "",
-            NodeType::Oxygen => "Oxygen"
+            NodeType::Oxygen => "Oxygen",
         };
         f.write_str(ty)
     }
@@ -308,45 +237,10 @@ impl From<NodeType> for Movement {
     }
 }
 
-#[derive(Clone, Copy, Debug, Hash, PartialEq, Eq, PartialOrd, Ord)]
-struct Position2D {
-    x: isize,
-    y: isize,
-}
-
-impl Position2D {
-    const ORIGIN: Self = Position2D { x: 0, y: 0 };
-}
-
-impl fmt::Display for Position2D {
-    fn fmt(&self, f: &mut fmt::Formatter) -> fmt::Result {
-        write!(f, "({}, {})", self.x, self.y)
-    }
-}
-
-impl std::ops::Add<Orientation> for Position2D {
-    type Output = Self;
-    fn add(self, o: Orientation) -> Self::Output {
-        let mut new = self;
-        match o {
-            Orientation::North => new.y += 1,
-            Orientation::South => new.y -= 1,
-            Orientation::East => new.x += 1,
-            Orientation::West => new.x -= 1,
-        }
-        new
-    }
-}
-
-impl std::ops::AddAssign<Orientation> for Position2D {
-    fn add_assign(&mut self, o: Orientation) {
-        match o {
-            Orientation::North => self.y += 1,
-            Orientation::South => self.y -= 1,
-            Orientation::East => self.x += 1,
-            Orientation::West => self.x -= 1,
-        }
-    }
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+enum BacktrackStatus {
+    SearchingForward,
+    Backtracking,
 }
 
 #[derive(Clone, Debug, Default)]
@@ -364,7 +258,7 @@ impl RepairDroid {
 
     fn max_distance_from(&self, start: Position2D) -> Option<usize> {
         let distances = petgraph::algo::dijkstra(&self.map, start, None, |_| 1);
-        println!("Distances from {}: {:#?}", start, distances);
+        log::trace!("Distances from {}: {:#?}", start, distances);
         distances
             .values()
             .copied()
@@ -384,19 +278,19 @@ impl RepairDroid {
         let mut visited = std::collections::HashSet::new();
         let mut walls = std::collections::HashSet::new();
         let mut position = Position2D::ORIGIN;
-        let mut oriented = Orientation::North;
+        let mut direction = Orientation::North;
         let mut movement_stack: Vec<(Orientation, Position2D)> = Vec::new();
         let mut oxygen = None;
-        let mut backtrack = false;
+        let mut status = BacktrackStatus::SearchingForward;
 
         self.map.add_node(position);
         visited.insert(position);
 
         loop {
-            if backtrack {
-                if let Some((orient, prev)) = movement_stack.pop() {
+            if status == BacktrackStatus::Backtracking {
+                if let Some((dir, prev)) = movement_stack.pop() {
                     log::debug!("Backtracking");
-                    if commands.send(intcode::Word::from(-orient)).await.is_err() {
+                    if commands.send(into_movement_command(-dir)).await.is_err() {
                         log::info!("droid stopped responding; halting");
                         break;
                     }
@@ -410,15 +304,19 @@ impl RepairDroid {
 
                     assert_eq!(move_result.movement(), Movement::Open);
 
-                    backtrack = false;
-                    oriented = orient;
+                    status = BacktrackStatus::SearchingForward;
+                    direction = dir;
                     position = prev;
                 } else {
                     log::info!("Finished search; halting");
                     break;
                 }
             } else {
-                if commands.send(intcode::Word::from(oriented)).await.is_err() {
+                if commands
+                    .send(into_movement_command(direction))
+                    .await
+                    .is_err()
+                {
                     log::info!("droid stopped responding; halting");
                     break;
                 }
@@ -430,9 +328,9 @@ impl RepairDroid {
                     break;
                 };
 
-                let next_pos = position + oriented;
+                let next_pos = position + direction;
                 self.map.add_node(next_pos);
-                self.map.add_edge(position, next_pos, oriented);
+                self.map.add_edge(position, next_pos, direction);
                 visited.insert(next_pos);
 
                 if move_result == NodeType::Oxygen {
@@ -440,27 +338,25 @@ impl RepairDroid {
                 }
 
                 if move_result.movement() == Movement::Open {
-                    movement_stack.push((oriented, position));
-                    position += oriented;
-                    oriented = Orientation::North;
+                    movement_stack.push((direction, position));
+                    position += direction;
+                    direction = Orientation::North;
                 } else {
                     walls.insert(next_pos);
                 }
             }
 
-            let mut next = position + oriented;
+            let mut next = position + direction;
             while visited.contains(&next) {
-                if !walls.contains(&next) {
-                    if !self.map.contains_edge(position, next) {
-                        self.map.add_edge(position, next, oriented);
-                    }
+                if !(walls.contains(&next) || self.map.contains_edge(position, next)) {
+                    self.map.add_edge(position, next, direction);
                 }
-                if oriented == Orientation::North.left() {
-                    backtrack = true;
+                if direction == Orientation::North.left() {
+                    status = BacktrackStatus::Backtracking;
                     break;
                 } else {
-                    oriented.turn_right();
-                    next = position + oriented;
+                    direction.turn_right();
+                    next = position + direction;
                 }
             }
         }
@@ -506,9 +402,7 @@ pub fn run() -> Result<()> {
 
     // robot.dot_viz();
 
-    let time_to_reoxygenate = robot
-        .max_distance_from(oxygen)
-        .unwrap() - 1;
+    let time_to_reoxygenate = robot.max_distance_from(oxygen).unwrap() - 1;
     println!("Time to reoxygenate zone: {}", time_to_reoxygenate);
 
     Ok(())
