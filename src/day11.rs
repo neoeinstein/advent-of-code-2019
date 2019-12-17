@@ -297,31 +297,23 @@ impl EmergencyHullPaintingRobot {
 fn convert_painted_panels_to_image(
     painted: &HashMap<Position2D, PanelColor>,
 ) -> Vec<Vec<PanelColor>> {
-    let (min_x, max_x, min_y, max_y) = painted.keys().fold(
-        (
-            i64::max_value(),
-            i64::min_value(),
-            i64::max_value(),
-            i64::min_value(),
-        ),
-        |(min_x, max_x, min_y, max_y), p| {
-            (
-                min_x.min(p.x),
-                max_x.max(p.x),
-                min_y.min(p.y),
-                max_y.max(p.y),
-            )
-        },
-    );
+    let min = Position2D::new(i64::max_value(), i64::max_value());
+    let max = Position2D::new(i64::min_value(), i64::min_value());
 
-    println!("x: [{}, {}]; y: [{}, {}]", min_x, max_x, min_y, max_y);
-    let row_count = (max_y - min_y + 1).abs() as usize;
-    let col_count = (max_x - min_x + 1).abs() as usize;
+    let (min, max) = painted.keys().fold((min, max), |(mut min, mut max), p| {
+        min = Position2D::new(min.x.min(p.x), min.y.min(p.y));
+        max = Position2D::new(max.x.max(p.x), max.y.max(p.y));
+        (min, max)
+    });
+
+    println!("min: {}; max: {}", min, max);
+    let row_count = (max.y - min.y + 1).abs() as usize;
+    let col_count = (max.x - min.x + 1).abs() as usize;
     let mut image = Vec::with_capacity(row_count);
     image.resize(row_count, vec![PanelColor::Black; col_count]);
 
     for (k, v) in painted.iter().filter(|(_, &v)| v != PanelColor::Black) {
-        image[(k.y - max_y).abs() as usize][(k.x - min_x) as usize] = *v;
+        image[(k.y - max.y).abs() as usize][(k.x - min.x) as usize] = *v;
     }
 
     image

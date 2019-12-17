@@ -6,13 +6,27 @@ use structopt::StructOpt;
 struct Opt {
     #[structopt(short, long)]
     day: Option<u8>,
+    #[structopt(long)]
+    all: bool,
 }
 
 fn main() -> Result<()> {
     env_logger::init();
     let opt = Opt::from_args();
 
-    match opt.day.unwrap_or_default() {
+    if opt.all {
+        for i in 1..=16 {
+            run_day(i)?;
+        }
+
+        Ok(())
+    } else {
+        run_day(opt.day.unwrap_or_default())
+    }
+}
+
+fn run_day(day: u8) -> Result<()> {
+    match day {
         1 => day01::run(),
         2 => day02::run()?,
         3 => day03::run(),
@@ -30,7 +44,8 @@ fn main() -> Result<()> {
         12 => day12::run()?,
         13 => day13::run()?,
         14 => day14::run()?,
-        _ => day15::run()?,
+        15 => day15::run()?,
+        _ => day16::run()?,
     }
 
     Ok(())

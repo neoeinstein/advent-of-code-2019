@@ -157,9 +157,45 @@ mod day09 {
     criterion_group!(solutions, part_1, part_2);
 }
 
+mod day16 {
+    use advent_of_code_2019::day16;
+    use criterion::{black_box, criterion_group, Criterion};
+
+    pub fn part_1(c: &mut Criterion) {
+        let data = day16::parse_input(day16::PUZZLE_INPUT);
+
+        c.bench_function("day16::part_1", |b| {
+            b.iter(|| {
+                let mut iter =
+                    day16::FftIter::new(black_box(data.clone()), black_box(day16::BASIC_SEQUENCE));
+                iter.nth(99).unwrap();
+                iter
+            })
+        });
+    }
+
+    pub fn part_2(c: &mut Criterion) {
+        let data = day16::parse_input(day16::PUZZLE_INPUT);
+
+        c.bench_function("day16::part_2", |b| {
+            b.iter(|| {
+                let offset = day16::calc_offset(black_box(&data));
+                day16::short_cut_high_offset(
+                    black_box(&data),
+                    black_box(10_000),
+                    offset,
+                    black_box(100),
+                )
+            })
+        });
+    }
+    criterion_group!(solutions, part_1, part_2);
+}
+
 criterion::criterion_main!(
     day02::solutions,
     day05::solutions,
     day07::solutions,
     day09::solutions,
+    day16::solutions,
 );
