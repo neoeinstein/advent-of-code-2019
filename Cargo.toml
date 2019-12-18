@@ -14,11 +14,12 @@ itertools = "0.8"
 lazy_static = "1"
 log = { version = "0.4", features = [ "release_max_level_info" ] }
 num-integer = "0.1"
+num-traits = "0.2"
 petgraph = "0.4"
 regex = "1"
 structopt = "*"
 termion = "*"
-tokio = { version = "0.2", features = [ "rt-core", "sync", "time" ] }
+tokio = { version = "0.2", features = [ "rt-core", "sync", "time", "io-std" ] }
 
 [dev-dependencies]
 criterion = "0.3"

@@ -23,6 +23,7 @@ mod error;
 mod execute;
 mod memory;
 mod ops;
+mod terminal;
 
 pub use address::Address;
 use address::Relative;
@@ -31,6 +32,7 @@ pub use buffer::Buffer;
 use execute::ProgramCounter;
 pub use execute::{Executable, ExecutionError};
 pub use memory::Memory;
+pub use terminal::TerminalOut;
 
 /// The quantum of data in Intcode memory
 pub type Word = i64;

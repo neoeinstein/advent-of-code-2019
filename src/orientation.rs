@@ -68,3 +68,51 @@ impl fmt::Display for Orientation {
         f.write_str(dir)
     }
 }
+
+#[derive(Clone, Copy, Debug, PartialEq, Eq)]
+pub enum Turn {
+    Left,
+    Right,
+}
+
+impl std::ops::Neg for Turn {
+    type Output = Self;
+    fn neg(self) -> Self::Output {
+        match self {
+            Turn::Left => Turn::Right,
+            Turn::Right => Turn::Left,
+        }
+    }
+}
+
+impl std::ops::Add<Turn> for Orientation {
+    type Output = Self;
+    fn add(self, other: Turn) -> Self::Output {
+        match other {
+            Turn::Left => self.left(),
+            Turn::Right => self.right(),
+        }
+    }
+}
+
+impl std::ops::AddAssign<Turn> for Orientation {
+    fn add_assign(&mut self, other: Turn) {
+        match other {
+            Turn::Left => self.turn_left(),
+            Turn::Right => self.turn_right(),
+        }
+    }
+}
+
+impl std::ops::Sub<Turn> for Orientation {
+    type Output = Self;
+    fn sub(self, other: Turn) -> Self::Output {
+        self + -other
+    }
+}
+
+impl std::ops::SubAssign<Turn> for Orientation {
+    fn sub_assign(&mut self, other: Turn) {
+        *self += -other
+    }
+}
