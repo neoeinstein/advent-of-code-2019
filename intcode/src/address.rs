@@ -12,6 +12,8 @@ impl fmt::Display for Address {
 }
 
 impl Address {
+    pub const ZERO: Self = Self(0);
+
     /// Constructs a new `Address` from a raw value
     pub const fn new(addr: usize) -> Self {
         Self(addr)

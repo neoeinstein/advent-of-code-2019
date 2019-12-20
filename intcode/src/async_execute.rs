@@ -81,6 +81,10 @@ impl From<Memory> for AsyncExecutable<Receiver<Word>> {
 }
 
 impl AsyncExecutable {
+    pub fn reset_pc(&mut self) {
+        self.pc = ProgramCounter::START;
+    }
+
     pub fn single_input(&mut self, value: Word) {
         let (mut tx, rx) = channel(1);
         self.input = rx;

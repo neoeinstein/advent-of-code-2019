@@ -7,6 +7,16 @@ pub struct Grid<T> {
     rows: usize,
 }
 
+impl<T: Clone> Grid<T> {
+    pub fn new(default: T, rows: usize, columns: usize) -> Self {
+        Self {
+            elements: vec![default; rows * columns],
+            rows,
+            columns,
+        }
+    }
+}
+
 impl<T> Grid<T> {
     pub fn max(&self) -> GridPosition {
         GridPosition::new(self.rows - 1, self.columns - 1)
