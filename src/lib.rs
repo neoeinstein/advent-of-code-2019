@@ -17,10 +17,13 @@ pub mod day14;
 pub mod day15;
 pub mod day16;
 pub mod day17;
+pub mod day18;
 
+mod grid;
 mod orientation;
 mod position;
 
+use grid::Grid;
 use orientation::{Orientation, Turn};
 use position::{GridPosition, Position2D};
 

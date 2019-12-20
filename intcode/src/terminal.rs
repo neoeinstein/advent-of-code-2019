@@ -5,9 +5,16 @@ use tokio::{
     sync::mpsc::{channel, Receiver, Sender},
 };
 
+#[derive(Debug)]
 pub struct TerminalOut {
     tx: Sender<Word>,
     rx: Receiver<Word>,
+}
+
+impl Default for TerminalOut {
+    fn default() -> Self {
+        Self::new()
+    }
 }
 
 impl TerminalOut {

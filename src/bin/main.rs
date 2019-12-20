@@ -46,7 +46,8 @@ fn run_day(day: u8) -> Result<()> {
         14 => day14::run()?,
         15 => day15::run()?,
         16 => day16::run()?,
-        _ => day17::run()?,
+        17 => day17::run()?,
+        _ => day18::run()?,
     }
 
     Ok(())
