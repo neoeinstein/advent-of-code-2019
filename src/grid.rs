@@ -46,6 +46,14 @@ impl<T> Grid<T> {
     pub fn enumerate(&self) -> GridIterator<T> {
         GridIterator::new(self)
     }
+
+    pub fn column(&self, column: usize) -> ColumnIterator<T> {
+        ColumnIterator::new(self, column)
+    }
+
+    pub fn row(&self, row: usize) -> RowIterator<T> {
+        RowIterator::new(self, row)
+    }
 }
 
 impl<T> std::str::FromStr for Grid<T>
@@ -129,6 +137,65 @@ impl<'a, T> Iterator for GridIterator<'a, T> {
             self.pos.col = 0;
             self.pos.row += 1;
         }
+        debug_assert_eq!(self.pos.idx(self.grid.columns), self.idx);
+        Some((pos, item))
+    }
+}
+
+pub struct ColumnIterator<'a, T> {
+    grid: &'a Grid<T>,
+    pos: GridPosition,
+    idx: usize,
+}
+
+impl<'a, T> ColumnIterator<'a, T> {
+    const fn new(grid: &'a Grid<T>, column: usize) -> Self {
+        Self {
+            grid,
+            pos: GridPosition {
+                row: 0,
+                col: column,
+            },
+            idx: column,
+        }
+    }
+}
+
+impl<'a, T> Iterator for ColumnIterator<'a, T> {
+    type Item = (GridPosition, &'a T);
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.grid.elements.get(self.idx)?;
+        let pos = self.pos;
+        self.idx += self.grid.columns;
+        self.pos.row += 1;
+        debug_assert_eq!(self.pos.idx(self.grid.columns), self.idx);
+        Some((pos, item))
+    }
+}
+
+pub struct RowIterator<'a, T> {
+    grid: &'a Grid<T>,
+    pos: GridPosition,
+    idx: usize,
+}
+
+impl<'a, T> RowIterator<'a, T> {
+    const fn new(grid: &'a Grid<T>, row: usize) -> Self {
+        Self {
+            grid,
+            pos: GridPosition { row, col: 0 },
+            idx: grid.columns * row,
+        }
+    }
+}
+
+impl<'a, T> Iterator for RowIterator<'a, T> {
+    type Item = (GridPosition, &'a T);
+    fn next(&mut self) -> Option<Self::Item> {
+        let item = self.grid.elements.get(self.idx)?;
+        let pos = self.pos;
+        self.idx += 1;
+        self.pos.col += 1;
         debug_assert_eq!(self.pos.idx(self.grid.columns), self.idx);
         Some((pos, item))
     }

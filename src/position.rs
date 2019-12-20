@@ -84,23 +84,24 @@ impl GridPosition {
     }
 
     pub fn neighbor(self, direction: Orientation) -> Option<Self> {
+        self.relative(direction, 1)
+    }
+
+    pub fn relative(self, direction: Orientation, distance: usize) -> Option<Self> {
         let new_positon = match direction {
-            Orientation::North => {
-                if self.row == 0 {
-                    return None;
-                }
-                GridPosition::new(self.row - 1, self.col)
-            }
-            Orientation::South => GridPosition::new(self.row + 1, self.col),
-            Orientation::West => {
-                if self.col == 0 {
-                    return None;
-                }
-                GridPosition::new(self.row, self.col - 1)
-            }
-            Orientation::East => GridPosition::new(self.row, self.col + 1),
+            Orientation::North if self.row < distance => None?,
+            Orientation::North => GridPosition::new(self.row - distance, self.col),
+            Orientation::South => GridPosition::new(self.row + distance, self.col),
+            Orientation::West if self.col < distance => None?,
+            Orientation::West => GridPosition::new(self.row, self.col - distance),
+            Orientation::East => GridPosition::new(self.row, self.col + distance),
         };
         Some(new_positon)
+    }
+
+    pub fn move_relative(&mut self, direction: Orientation, distance: usize) -> Option<()> {
+        *self = self.relative(direction, distance)?;
+        Some(())
     }
 
     pub fn limit(self, max: GridPosition) -> Option<Self> {
