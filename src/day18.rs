@@ -1209,9 +1209,9 @@ mod tests {
     fn example_1() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            #########
-            #b.A.@.a#
-            #########";
+#########
+#b.A.@.a#
+#########";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1225,11 +1225,11 @@ mod tests {
     fn example_2() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            ########################
-            #f.D.E.e.C.b.A.@.a.B.c.#
-            ######################.#
-            #d.....................#
-            ########################";
+########################
+#f.D.E.e.C.b.A.@.a.B.c.#
+######################.#
+#d.....................#
+########################";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1245,11 +1245,11 @@ mod tests {
     fn example_3() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            ########################
-            #...............b.C.D.f#
-            #.######################
-            #.....@.a.B.c.d.A.e.F.g#
-            ########################";
+########################
+#...............b.C.D.f#
+#.######################
+#.....@.a.B.c.d.A.e.F.g#
+########################";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1265,15 +1265,15 @@ mod tests {
     fn example_4() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            #################
-            #i.G..c...e..H.p#
-            ########.########
-            #j.A..b...f..D.o#
-            ########@########
-            #k.E..a...g..B.n#
-            ########.########
-            #l.F..d...h..C.m#
-            #################";
+#################
+#i.G..c...e..H.p#
+########.########
+#j.A..b...f..D.o#
+########@########
+#k.E..a...g..B.n#
+########.########
+#l.F..d...h..C.m#
+#################";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1289,12 +1289,12 @@ mod tests {
     fn example_5() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            ########################
-            #@..............ac.GI.b#
-            ###d#e#f################
-            ###A#B#C################
-            ###g#h#i################
-            ########################";
+########################
+#@..............ac.GI.b#
+###d#e#f################
+###A#B#C################
+###g#h#i################
+########################";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1310,13 +1310,13 @@ mod tests {
     fn example_6() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            #######
-            #a.#Cd#
-            ##@#@##
-            #######
-            ##@#@##
-            #cB#Ab#
-            #######";
+#######
+#a.#Cd#
+##@#@##
+#######
+##@#@##
+#cB#Ab#
+#######";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1332,13 +1332,13 @@ mod tests {
     fn example_7() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            ###############
-            #d.ABC.#.....a#
-            ######@#@######
-            ###############
-            ######@#@######
-            #b.....#.....c#
-            ###############";
+###############
+#d.ABC.#.....a#
+######@#@######
+###############
+######@#@######
+#b.....#.....c#
+###############";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
@@ -1354,13 +1354,13 @@ mod tests {
     fn example_8() {
         crate::init_logging();
         const EXAMPLE: &str = "
-            #############
-            #DcBa.#.GhKl#
-            #.###@#@#I###
-            #e#d#####j#k#
-            ###C#@#@###J#
-            #fEbA.#.FgHi#
-            #############";
+#############
+#DcBa.#.GhKl#
+#.###@#@#I###
+#e#d#####j#k#
+###C#@#@###J#
+#fEbA.#.FgHi#
+#############";
 
         let input: Grid<Element> = EXAMPLE.parse().unwrap();
         let maze = Maze::from(input);
