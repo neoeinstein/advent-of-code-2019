@@ -1,0 +1,11 @@
+graph {
+    0 [label="PZ↣"]
+    1 [label="↣ZZ"]
+    2 [label="RP↣"]
+    3 [label="↣AA"]
+    4 [label="PF↣"]
+    5 [label="RO↣"]
+    2 -- 1 [label="60"]
+    0 -- 3 [label="74"]
+    4 -- 5 [label="18"]
+}

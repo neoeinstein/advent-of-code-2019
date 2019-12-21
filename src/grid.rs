@@ -47,6 +47,14 @@ impl<T> Grid<T> {
         GridIterator::new(self)
     }
 
+    pub fn columns(&self) -> usize {
+        self.columns
+    }
+
+    pub fn rows(&self) -> usize {
+        self.rows
+    }
+
     pub fn column(&self, column: usize) -> ColumnIterator<T> {
         ColumnIterator::new(self, column)
     }
