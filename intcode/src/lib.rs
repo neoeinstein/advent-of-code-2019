@@ -32,7 +32,7 @@ pub use buffer::Buffer;
 use execute::ProgramCounter;
 pub use execute::{Executable, ExecutionError};
 pub use memory::Memory;
-pub use terminal::TerminalOut;
+pub use terminal::{AsciiTerminal, TerminalOut};
 
 /// The quantum of data in Intcode memory
 pub type Word = i64;
