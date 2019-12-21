@@ -1,7 +1,7 @@
 use super::{AsyncExecutable, ExecutionError, Memory, Word};
 use num_traits::ToPrimitive;
 use tokio::{
-    io::{AsyncBufRead, AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
+    io::{AsyncBufReadExt, AsyncWrite, AsyncWriteExt, BufReader},
     sync::mpsc::{channel, Receiver, Sender},
 };
 

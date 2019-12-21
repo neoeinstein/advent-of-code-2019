@@ -152,7 +152,7 @@
 //! Successfully survey the rest of the hull by ending your program with `RUN`.
 //! What amount of hull damage does the springdroid now report?
 
-use anyhow::{anyhow, Result};
+use anyhow::Result;
 
 const PUZZLE_INPUT: &str = include_str!("../inputs/input-21");
 
