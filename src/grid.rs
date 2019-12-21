@@ -65,8 +65,8 @@ where
         let mut elements = Vec::new();
         let mut rows = 0;
         let mut columns = 0;
-        for l in s.trim().lines() {
-            let trimmed = l.trim();
+        for l in s.lines() {
+            let trimmed = l;
             if trimmed.is_empty() {
                 continue;
             }
