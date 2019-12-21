@@ -449,7 +449,7 @@ impl From<Grid<Element>> for DonutMaze {
         let finish = finish.expect("end missing");
 
         compress_graph(&mut graph, |c| {
-            if let Some(elem) = grid.get(c).copied() {
+            if let Some(elem) = grid.get(c) {
                 !elem.is_passable()
             } else {
                 false
@@ -480,7 +480,7 @@ impl GridWithWarp {
         }
     }
 
-    fn new_with_warp(position: GridPosition, warp: Warp) -> Self {
+    fn with_warp(position: GridPosition, warp: Warp) -> Self {
         Self {
             position,
             warp: Some(warp),
@@ -594,13 +594,20 @@ impl RecursiveMaze {
     }
 
     fn shortest_path(&self) -> Option<usize> {
+        if !self.lzero.contains_node(GridWithWarp::with_warp(
+            self.finish,
+            Warp::Outer(WarpId::FINISH),
+        )) {
+            return None;
+        }
+
         let mut queue = BinaryHeap::new();
         let mut visits = 0;
 
         queue.push(Queue {
             total_steps: 0,
             level: 0,
-            node: GridWithWarp::new_with_warp(self.start, Warp::Outer(WarpId::START)),
+            node: GridWithWarp::with_warp(self.start, Warp::Outer(WarpId::START)),
             visited: Vec::new(),
         });
 
@@ -689,8 +696,7 @@ impl RecursiveMaze {
                     Some(next.level + 1)
                 };
                 if let Some(lvl) = next_level {
-                    let target =
-                        GridWithWarp::new_with_warp(GridPosition::ORIGIN, warp.compliment());
+                    let target = GridWithWarp::with_warp(GridPosition::ORIGIN, warp.compliment());
                     if !next.visited.contains(&(lvl, target)) {
                         queue.push(Queue {
                             total_steps: next.total_steps + 1,
@@ -737,7 +743,7 @@ impl From<Grid<Element>> for RecursiveMaze {
                         } else {
                             Warp::Outer(warp_id)
                         };
-                        let n = GridWithWarp::new_with_warp(pos, warp);
+                        let n = GridWithWarp::with_warp(pos, warp);
                         graph.add_node(n);
                         graph.add_edge(n, GridWithWarp::new(pos.neighbor(o).unwrap()), 0);
                         break;
