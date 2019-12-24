@@ -9,10 +9,12 @@ edition = "2018"
 [dependencies]
 anyhow = "1"
 env_logger = "0.7"
+futures = "*"
 intcode = { path = "./intcode" }
 itertools = "0.8"
 lazy_static = "1"
 log = { version = "0.4", features = [ "release_max_level_info" ] }
+num-bigint = "0.2"
 num-integer = "0.1"
 num-traits = "0.2"
 petgraph = "0.4"
@@ -20,7 +22,7 @@ regex = "1"
 smallvec = "*"
 structopt = "*"
 termion = "*"
-tokio = { version = "0.2", features = [ "rt-core", "sync", "time", "io-std" ] }
+tokio = { version = "0.2", features = [ "rt-core", "sync", "time", "io-std", "stream" ] }
 
 [dev-dependencies]
 criterion = "0.3"

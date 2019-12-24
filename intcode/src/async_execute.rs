@@ -4,6 +4,7 @@ use super::{
     ops::Instruction,
     Address, Memory, Relative, Word,
 };
+use futures::stream::{Stream, StreamExt};
 use snafu::ResultExt;
 use std::{
     convert::TryFrom,
@@ -116,6 +117,18 @@ impl<Input> AsyncExecutable<Input> {
 
     pub fn pipe_outputs_to(&mut self, target: Sender<Word>) {
         self.output = target;
+    }
+
+    pub fn input_stream<S>(self, source: S) -> AsyncExecutable<S> {
+        AsyncExecutable {
+            id: self.id,
+            memory: self.memory,
+            pc: self.pc,
+            rel: self.rel,
+            input: source,
+            output: self.output,
+            steps: self.steps,
+        }
     }
 
     pub fn watch_inputs_from(
@@ -264,7 +277,10 @@ impl<Input> AsyncExecutable<Input> {
     }
 }
 
-impl AsyncExecutable<tokio::sync::watch::Receiver<Word>> {
+impl<S> AsyncExecutable<S>
+where
+    S: Stream<Item = Word> + Unpin,
+{
     /// Executes the Intcode program in memory until a halt instruction is
     /// encountered or an invalid operation causes termination due to an
     /// `ExecutionError`
@@ -307,66 +323,7 @@ impl AsyncExecutable<tokio::sync::watch::Receiver<Word>> {
     async fn execute_input(&mut self, operands: InputOperands) -> Result<(), ExecutionErrorInner> {
         let value = self
             .input
-            .recv()
-            .await
-            .ok_or(ExecutionErrorInner::UnexpectedEndOfInput {
-                source: std::sync::mpsc::RecvError,
-                pc: self.pc,
-            })?;
-
-        log::trace!("{}@{}: {} =>", self.id, self.pc, value);
-
-        operands.target.store(self.rel, &mut self.memory, value);
-
-        self.pc.advance(2);
-        Ok(())
-    }
-}
-
-impl AsyncExecutable {
-    /// Executes the Intcode program in memory until a halt instruction is
-    /// encountered or an invalid operation causes termination due to an
-    /// `ExecutionError`
-    pub async fn execute(mut self) -> Result<Memory, ExecutionError> {
-        while self.step().await? {}
-
-        Ok(self.memory)
-    }
-
-    pub async fn step(&mut self) -> Result<bool, ExecutionError> {
-        Ok(self.execute_op(self.read_instruction()?).await?)
-    }
-
-    async fn execute_op(&mut self, op: Decoded) -> Result<bool, ExecutionErrorInner> {
-        self.steps += 1;
-        match op {
-            Decoded::Add(params) => self.execute_binary_op(params, ops::Add::add),
-            Decoded::Mul(params) => self.execute_binary_op(params, ops::Mul::mul),
-            Decoded::Input(params) => self.execute_input(params).await,
-            Decoded::Output(params) => self.execute_output(params).await,
-            Decoded::JumpNonZero(params) => self.execute_jump_if(params, true),
-            Decoded::JumpZero(params) => self.execute_jump_if(params, false),
-            Decoded::LessThan(params) => self.execute_cmp(params, Word::lt),
-            Decoded::Equal(params) => self.execute_cmp(params, Word::eq),
-            Decoded::AddRel(params) => self.execute_add_rel(params),
-            Decoded::Halt => {
-                log::trace!("{}@{}: halt", self.id, self.pc);
-                log::debug!(
-                    "halted (steps = {}; memory size = {})",
-                    self.steps,
-                    self.memory.max_address().value() + 1
-                );
-                return Ok(false);
-            }
-        }?;
-
-        Ok(true)
-    }
-
-    async fn execute_input(&mut self, operands: InputOperands) -> Result<(), ExecutionErrorInner> {
-        let value = self
-            .input
-            .recv()
+            .next()
             .await
             .ok_or(ExecutionErrorInner::UnexpectedEndOfInput {
                 source: std::sync::mpsc::RecvError,
