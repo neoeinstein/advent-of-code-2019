@@ -15,6 +15,16 @@ impl<T: Clone> Grid<T> {
             columns,
         }
     }
+
+    pub fn from_elements<I: IntoIterator<Item = T>>(rows: usize, columns: usize, iter: I) -> Self {
+        let elements: Vec<T> = iter.into_iter().collect();
+        debug_assert_eq!(elements.len(), rows * columns);
+        Self {
+            elements,
+            rows,
+            columns,
+        }
+    }
 }
 
 impl<T> Grid<T> {
@@ -61,6 +71,10 @@ impl<T> Grid<T> {
 
     pub fn row(&self, row: usize) -> RowIterator<T> {
         RowIterator::new(self, row)
+    }
+
+    pub fn neighbors(&self, position: GridPosition) -> NeighborIterator<T> {
+        NeighborIterator::new(self, position)
     }
 }
 
@@ -206,5 +220,41 @@ impl<'a, T> Iterator for RowIterator<'a, T> {
         self.pos.col += 1;
         debug_assert_eq!(self.pos.idx(self.grid.columns), self.idx);
         Some((pos, item))
+    }
+}
+
+pub struct NeighborIterator<'a, T> {
+    grid: &'a Grid<T>,
+    pos: GridPosition,
+    dir: smallvec::SmallVec<[Orientation; 4]>,
+}
+
+const NEIGHBORS: [Orientation; 4] = [
+    Orientation::South,
+    Orientation::East,
+    Orientation::West,
+    Orientation::North,
+];
+
+impl<'a, T> NeighborIterator<'a, T> {
+    fn new(grid: &'a Grid<T>, position: GridPosition) -> Self {
+        Self {
+            grid,
+            pos: position,
+            dir: smallvec::SmallVec::from_buf(NEIGHBORS),
+        }
+    }
+}
+
+impl<'a, T> Iterator for NeighborIterator<'a, T> {
+    type Item = (GridPosition, &'a T);
+    fn next(&mut self) -> Option<Self::Item> {
+        loop {
+            let dir = self.dir.pop()?;
+            if let Some(item) = self.grid.get_neighbor(self.pos, dir) {
+                let pos = self.pos;
+                return Some((pos, item));
+            }
+        }
     }
 }
