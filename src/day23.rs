@@ -40,6 +40,31 @@
 //!
 //! Boot up all 50 computers and attach them to your network. What is the Y
 //! value of the first packet sent to address `255`?
+//!
+//! ## Part Two
+//!
+//! Packets sent to address `255` are handled by a device called a NAT (Not
+//! Always Transmitting). The NAT is responsible for managing power consumption
+//! of the network by blocking certain packets and watching for idle periods in
+//! the computers.
+//!
+//! If a packet would be sent to address 255, the NAT receives it instead. The
+//! NAT remembers only the last packet it receives; that is, the data in each
+//! packet it receives overwrites the NAT's packet memory with the new packet's
+//! X and Y values.
+//!
+//! The NAT also monitors all computers on the network. If all computers have
+//! empty incoming packet queues and are continuously trying to receive packets
+//! without sending packets, the network is considered idle.
+//!
+//! Once the network is idle, the NAT sends only the last packet it received to
+//! address 0; this will cause the computers on the network to resume activity.
+//! In this way, the NAT can throttle power consumption of the network when the
+//! ship needs power in other areas.
+//!
+//! Monitor packets released to the computer at address `0` by the NAT. What is
+//! the first Y value delivered by the NAT to the computer at address 0 twice in
+//! a row?
 
 use anyhow::Result;
 use tokio::sync::mpsc::{channel, Receiver, Sender};
@@ -52,7 +77,7 @@ struct Packet {
     data: PacketData,
 }
 
-#[derive(Clone, Copy, Debug)]
+#[derive(Clone, Copy, Debug, Default)]
 struct PacketData {
     x: intcode::Word,
     y: intcode::Word,
@@ -63,6 +88,7 @@ struct NetworkRouter {
     tx: Sender<Packet>,
     rx: Receiver<Packet>,
     members: Vec<Sender<PacketData>>,
+    watchers: Vec<tokio::sync::watch::Receiver<bool>>,
 }
 
 impl NetworkRouter {
@@ -72,6 +98,7 @@ impl NetworkRouter {
             tx,
             rx,
             members: Vec::new(),
+            watchers: Vec::new(),
         }
     }
 
@@ -84,18 +111,48 @@ impl NetworkRouter {
         exe.pipe_outputs_to(tx);
         tokio::spawn(net_translator.execute());
 
-        let (tx_pkt, rx_pkt) = channel(1);
+        let net_in = FromNetworkTranslator::new(id);
 
-        let exe = exe.input_stream(FromNetworkTranslator::new(id, rx_pkt));
+        self.members.push(net_in.tx());
+        self.watchers.push(net_in.idle());
 
-        self.members.push(tx_pkt);
+        let exe = exe.input_stream(net_in);
 
         Ok(exe)
     }
 
+    async fn execute_nat(mut self) -> Result<intcode::Word> {
+        let mut last_sent: Option<PacketData> = None;
+        let mut nat_packet: Option<PacketData> = None;
+        loop {
+            if let Ok(pkt) = self.rx.try_recv() {
+                log::debug!("Router packet received: {:?}", pkt);
+                if pkt.address == 255 {
+                    nat_packet = Some(pkt.data);
+                } else {
+                    self.members[pkt.address as usize].send(pkt.data).await?;
+                }
+                continue;
+            } else if let Some(pkt) = nat_packet.take() {
+                log::trace!("Maybe idle");
+                if self.watchers.iter().all(|w| *w.borrow()) {
+                    if let Some(last) = last_sent {
+                        if last.y == pkt.y {
+                            return Ok(last.y);
+                        }
+                    }
+                    last_sent = Some(pkt);
+                    self.members[0].send(pkt).await?;
+                    continue;
+                }
+            }
+            tokio::task::yield_now().await;
+        }
+    }
+
     async fn execute(mut self) -> Result<intcode::Word> {
         while let Some(pkt) = self.rx.recv().await {
-            println!("Packet received: {:?}", pkt);
+            log::debug!("Router packet received: {:?}", pkt);
             if pkt.address == 255 {
                 return Ok(pkt.data.y);
             }
@@ -130,13 +187,13 @@ impl ToNetworkTranslator {
 
     async fn execute_inner(mut self) -> Option<()> {
         loop {
-            println!("{} Waiting for data", self.id);
+            log::trace!("{} Waiting for data", self.id);
             let address = self.from_exe_rx.recv().await?;
-            println!("{} Sent address: {}", self.id, address);
+            log::trace!("{} Sent address: {}", self.id, address);
             let x = self.from_exe_rx.recv().await?;
-            println!("{} Sent x: {}", self.id, x);
+            log::trace!("{} Sent x: {}", self.id, x);
             let y = self.from_exe_rx.recv().await?;
-            println!("{} Sent y: {}", self.id, y);
+            log::trace!("{} Sent y: {}", self.id, y);
             let packet = Packet {
                 address,
                 data: PacketData { x, y },
@@ -144,7 +201,7 @@ impl ToNetworkTranslator {
             if self.to_router_tx.send(packet).await.is_err() {
                 break;
             }
-            println!("{} Sent full packet: {:?}", self.id, packet);
+            log::trace!("{} Sent full packet: {:?}", self.id, packet);
         }
         Some(())
     }
@@ -152,19 +209,35 @@ impl ToNetworkTranslator {
 
 struct FromNetworkTranslator {
     id: intcode::Word,
+    tx: Sender<PacketData>,
     packet_source: Receiver<PacketData>,
     packet_y: Option<intcode::Word>,
+    idle_signal: tokio::sync::watch::Sender<bool>,
+    idle_watch: tokio::sync::watch::Receiver<bool>,
     yielded: bool,
 }
 
 impl FromNetworkTranslator {
-    fn new(network_id: intcode::Word, packet_source: Receiver<PacketData>) -> Self {
+    fn new(network_id: intcode::Word) -> Self {
+        let (tx, rx) = channel(1);
+        let (idle_signal, idle_watch) = tokio::sync::watch::channel(false);
         Self {
             id: network_id,
-            packet_source,
+            tx,
+            packet_source: rx,
             packet_y: Some(network_id),
+            idle_signal,
+            idle_watch,
             yielded: false,
         }
+    }
+
+    fn idle(&self) -> tokio::sync::watch::Receiver<bool> {
+        self.idle_watch.clone()
+    }
+
+    fn tx(&self) -> Sender<PacketData> {
+        self.tx.clone()
     }
 }
 
@@ -177,24 +250,26 @@ impl futures::stream::Stream for FromNetworkTranslator {
         let packet_y = self.packet_y;
         let pin = self.get_mut();
         if let Some(y) = packet_y {
-            println!("{} Receiving y: {}", pin.id, y);
+            log::trace!("{} Receiving y: {}", pin.id, y);
             pin.packet_y = None;
             std::task::Poll::Ready(Some(y))
         } else if let std::task::Poll::Ready(Some(data)) =
             std::pin::Pin::new(&mut pin.packet_source).poll_next(ctx)
         {
-            println!("{} Received packet: {:?}", pin.id, data);
+            let _ = pin.idle_signal.broadcast(false);
+            log::debug!("{} Received packet: {:?}", pin.id, data);
             pin.packet_y = Some(data.y);
-            println!("{} Receiving x: {}", pin.id, data.x);
+            log::trace!("{} Receiving x: {}", pin.id, data.x);
             std::task::Poll::Ready(Some(data.x))
         } else if !pin.yielded {
             pin.yielded = true;
-            println!("{} Yielding", pin.id);
+            log::trace!("{} Yielding", pin.id);
             ctx.waker().wake_by_ref();
             std::task::Poll::Pending
         } else {
             pin.yielded = false;
-            println!("{} Sending no data", pin.id);
+            let _ = pin.idle_signal.broadcast(true);
+            log::trace!("{} Idle", pin.id);
             std::task::Poll::Ready(Some(-1))
         }
     }
@@ -218,12 +293,34 @@ async fn part1(program: &intcode::Memory) -> Result<intcode::Word> {
     j.await
 }
 
+async fn part2(program: &intcode::Memory) -> Result<intcode::Word> {
+    let mut router = NetworkRouter::new();
+    let mut futs = Vec::new();
+    for _ in 0..50_u8 {
+        let exe = router
+            .attach_client(intcode::AsyncExecutable::from(program.clone()))
+            .await?;
+        let fut = exe.execute();
+        futs.push(fut);
+    }
+
+    let j = router.execute_nat();
+    for f in futs {
+        tokio::spawn(f);
+    }
+    j.await
+}
+
 pub fn run() -> Result<()> {
     let program: intcode::Memory = PUZZLE_INPUT.parse()?;
     let mut runtime = tokio::runtime::Runtime::new()?;
     let result = runtime.block_on(part1(&program))?;
 
     println!("Packet to 255: {}", result);
+
+    let result = runtime.block_on(part2(&program))?;
+
+    println!("Last doubled to 0: {}", result);
 
     Ok(())
 }
