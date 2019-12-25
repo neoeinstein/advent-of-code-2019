@@ -9,6 +9,7 @@ pub struct AsciiTerminal {
     tx: Sender<Word>,
     rx: Receiver<Word>,
     exe: AsyncExecutable,
+    predefined_input: &'static [&'static str],
 }
 
 impl AsciiTerminal {
@@ -22,11 +23,26 @@ impl AsciiTerminal {
             tx: input.0,
             rx: output.1,
             exe,
+            predefined_input: &[],
+        }
+    }
+
+    pub fn with_input(program: Memory, predefined_input: &'static [&'static str]) -> Self {
+        let mut exe = AsyncExecutable::from(program);
+        let input = channel(20);
+        let output = channel(20);
+        exe.pipe_inputs_from(input.1);
+        exe.pipe_outputs_to(output.0);
+        Self {
+            tx: input.0,
+            rx: output.1,
+            exe,
+            predefined_input
         }
     }
 
     pub async fn execute(self) -> Result<Memory, ExecutionError> {
-        tokio::spawn(run_input(self.tx));
+        tokio::spawn(run_input(self.tx, self.predefined_input));
         let out = tokio::spawn(run_output(self.rx));
         let join = tokio::spawn(self.exe.execute());
         let r = join.await.unwrap();
@@ -35,7 +51,14 @@ impl AsciiTerminal {
     }
 }
 
-async fn run_input(mut input: Sender<Word>) -> tokio::io::Result<()> {
+async fn run_input(mut input: Sender<Word>, predefined_input: &'static [&'static str]) -> tokio::io::Result<()> {
+    for line in predefined_input {
+        for ch in line.bytes() {
+            let _ = input.send(ch as i64).await;
+        }
+        let _ = input.send(b'\n' as i64).await;
+    }
+
     let mut i = BufReader::new(tokio::io::stdin());
     let mut buf = String::new();
     loop {
